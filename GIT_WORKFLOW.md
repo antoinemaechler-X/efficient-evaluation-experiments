@@ -40,6 +40,9 @@ cd ~/efficiently-evaluating-llms
 git pull origin main
 ```
 
+## Setup (already done)
+- Both machines have `main` tracking `origin/main` (`git branch --set-upstream-to=origin/main main`), so plain `git pull` / `git push` works.
+
 ## Rules
 - Always commit or stash before pulling to avoid conflicts.
 - Large data files (`data/raw.zip`, `data/processed/`, `acs_study/data/`) are in `.gitignore` — never tracked.
