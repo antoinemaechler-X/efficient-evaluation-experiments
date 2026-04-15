@@ -1,12 +1,12 @@
 #!/bin/sh
-#SBATCH --job-name=faq_final_hb
+#SBATCH --job-name=ci_widths
 #SBATCH -p preempt
 #SBATCH --nodes=1
 #SBATCH -A marlowe-m000127
 #SBATCH -G 1
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/final/slurm_faq_final_hb_%A_%a.out
-#SBATCH --error=logs/final/slurm_faq_final_hb_%A_%a.err
+#SBATCH --output=logs/ci_widths/slurm_%A_%a.out
+#SBATCH --error=logs/ci_widths/slurm_%A_%a.err
 #SBATCH --array=0-2
 
 module load slurm
@@ -19,4 +19,4 @@ conda activate /scratch/m000127/maechler/faq_env
 cd ~/efficiently-evaluating-llms
 
 echo "Task $SLURM_ARRAY_TASK_ID: seed_chunk=$SLURM_ARRAY_TASK_ID"
-python faq_final_high_budget_all_ms.py $SLURM_ARRAY_TASK_ID
+python faq_final_ci_saved.py $SLURM_ARRAY_TASK_ID
