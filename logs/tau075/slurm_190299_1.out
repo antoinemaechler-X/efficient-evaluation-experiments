@@ -1,0 +1,37 @@
+Task 1: dataset=1
+=== PHASE 1: Validation for bbh+gpqa+ifeval+math+musr ===
+  Budget 0.025: validated 100 combos
+  Budget 0.05: validated 100 combos
+  Budget 0.075: validated 100 combos
+  Budget 0.1: validated 100 combos
+  Budget 0.125: validated 100 combos
+  Budget 0.15: validated 100 combos
+  Budget 0.175: validated 100 combos
+  Budget 0.2: validated 100 combos
+  Budget 0.225: validated 100 combos
+  Budget 0.25: validated 100 combos
+Best settings saved to logs/tau075/best_settings_bbh+gpqa+ifeval+math+musr.csv
+
+=== PHASE 2: Final testing for bbh+gpqa+ifeval+math+musr ===
+  Finished 50 / 1000
+  Finished 100 / 1000
+  Finished 150 / 1000
+  Finished 200 / 1000
+  Finished 250 / 1000
+  Finished 300 / 1000
+  Finished 350 / 1000
+  Finished 400 / 1000
+  Finished 450 / 1000
+  Finished 500 / 1000
+  Finished 550 / 1000
+  Finished 600 / 1000
+  Finished 650 / 1000
+  Finished 700 / 1000
+  Finished 750 / 1000
+  Finished 800 / 1000
+  Finished 850 / 1000
+  Finished 900 / 1000
+  Finished 950 / 1000
+  Finished 1000 / 1000
+
+Done! Results in logs/tau075/final_bbh+gpqa+ifeval+math+musr.csv

@@ -22,7 +22,7 @@ Hyperparameters to tune over / simulation settings to consider:
 # store all of these simulation settings + hyperparameters as lists
 DATASETS = ["mmlu-pro", "bbh+gpqa+ifeval+math+musr"] # in cmd-line
 MISSINGNESS_SETTINGS = [(50, 0.1), (200, 0.1), (800, 0.1), (None, 1.0), (0, 0.01), (0, 0.001), (0, 0.0001), (0, 0.00001)] # 8 such settings
-BUDGET_PROPS = np.round(np.linspace(0.0, 0.25, 11)[1:], decimals=3)
+BUDGET_PROPS = np.round(np.linspace(0.25, 0.5, 11)[1:], decimals=3)
 BETA0_VALS = [0.25, 0.5, 0.75, 1.0]
 RHO_VALS = [0.0, 0.05, 0.25, 0.5, 0.75]
 GAMMA_VALS = [0.0, 0.05, 0.25, 0.5, 0.75] # in cmd-line
@@ -234,9 +234,13 @@ for missingness_setting in MISSINGNESS_SETTINGS:
     N_NEW, N_QUESTIONS = M1_val.shape
     
     # load our corresponding factor models
-    if n_full_obs != 0:
-        U = torch.load(f"factor_models/val/{dataset}/U_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
-        V = torch.load(f"factor_models/val/{dataset}/V_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
+    # if n_full_obs != 0:
+    #     U = torch.load(f"factor_models/val/{dataset}/U_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
+    #     V = torch.load(f"factor_models/val/{dataset}/V_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
+
+    U = torch.load(f"factor_models/val/{dataset}/U_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
+    V = torch.load(f"factor_models/val/{dataset}/V_nfobs={n_full_obs}_p={mcar_obs_prob}.pt").to(device)
+   
     D = U.shape[1]
     
     # initialize starting mean and covariance for our new model factors U_i's

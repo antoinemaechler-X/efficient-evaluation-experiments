@@ -1,0 +1,26 @@
+Task 0: dataset=0
+=== PHASE 1: SKIPPED — logs/tau075/best_settings_mmlu-pro.csv already has 10 budgets ===
+
+=== PHASE 2: Final testing for mmlu-pro ===
+  Finished 50 / 1000
+  Finished 100 / 1000
+  Finished 150 / 1000
+  Finished 200 / 1000
+  Finished 250 / 1000
+  Finished 300 / 1000
+  Finished 350 / 1000
+  Finished 400 / 1000
+  Finished 450 / 1000
+  Finished 500 / 1000
+  Finished 550 / 1000
+  Finished 600 / 1000
+  Finished 650 / 1000
+  Finished 700 / 1000
+  Finished 750 / 1000
+  Finished 800 / 1000
+  Finished 850 / 1000
+  Finished 900 / 1000
+  Finished 950 / 1000
+  Finished 1000 / 1000
+
+Done! Results in logs/tau075/final_mmlu-pro.csv

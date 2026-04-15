@@ -20,7 +20,10 @@ Settings to iterate over:
 # datasets + missingness settings, also budget_props
 dataset = ["mmlu-pro", "bbh+gpqa+ifeval+math+musr"][int(sys.argv[1])]
 MISSINGNESS_SETTINGS = [(None, 1.0), (0, 0.00001), (0, 0.0001), (0, 0.001), (0, 0.01)]
-BUDGET_PROPS = np.linspace(0.0, 0.25, 11)[1:]
+#MISSINGNESS_SETTINGS = [(None, 1.0)]
+BUDGET_PROPS = np.linspace(0.25, 0.5, 11)[1:]
+if len(sys.argv) > 2: #to split the jobs
+      BUDGET_PROPS = [BUDGET_PROPS[int(sys.argv[2])]]
 
 # Zrnic & Candes, Section 7.2: Practical Sampling Rules
 TAUS = [0.05, 0.25, 0.5, 0.75]
