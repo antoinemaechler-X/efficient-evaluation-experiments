@@ -1,0 +1,44 @@
+  # Data (large / downloaded)
+  data/raw.zip
+  data/processed/
+  acs_study/data/
+
+  # OS files
+  .DS_Store
+  __pycache__/
+  *.pyc
+
+  # Experiment outputs (large, cluster-specific)
+  logs/final/
+  logs/val/
+  logs/coverage_analysis/
+  factor_models/
+
+  # Env files
+  *.egg-info/
+  environment_local.yml
+  EOF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
