@@ -58,9 +58,12 @@ def load_and_merge(paths):
     dfs = [pd.read_csv(p) for p in paths]
     df = pd.concat(dfs, ignore_index=True)
 
-    # Handle old column names
-    if "interval width" in df.columns and "mean_width" not in df.columns:
-        df = df.rename(columns={"interval width": "mean_width"})
+    # Handle old column names (fill mean_width from "interval width" where missing)
+    if "interval width" in df.columns:
+        if "mean_width" not in df.columns:
+            df = df.rename(columns={"interval width": "mean_width"})
+        else:
+            df["mean_width"] = df["mean_width"].fillna(df["interval width"])
 
     # Add trial index if missing
     if "seed" not in df.columns:
@@ -72,6 +75,9 @@ def load_and_merge(paths):
         # fallback: infer from data
         df["prop_budget"] = df["$n_b$"] / df["$n_b$"].max() * df.groupby("estimator")["$n_b$"].transform("max").max() / df["$n_b$"].max()
         # simpler: just use $n_b$ directly on x-axis
+
+    # Normalize old estimator names to canonical names
+    df["estimator"] = df["estimator"].replace({"faq (full var)": "faq"})
 
     # Drop estimators we don't want
     df = df[df["estimator"].map(lambda e: ROLE_MAP.get(e) is not None)].copy()
