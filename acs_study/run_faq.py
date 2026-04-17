@@ -199,6 +199,21 @@ def trial(
     return thetahats_T, v_T_sq_simp, v_T_sq_full
 
 
+def trial_classical(Y, N_NEW, N_QUESTIONS, N_B, seed, device):
+    """Classical baseline: uniform with-replacement sampling + sample mean.
+
+    No ML model, no AIPW correction. This is the simplest possible estimator
+    used as a reference point.
+    """
+    torch.random.manual_seed(seed)
+    I = torch.randint(0, N_QUESTIONS, size=(N_NEW, N_B), device=device)  # (N_NEW, N_B)
+    Y_samp = Y[I]                                                        # (N_NEW, N_B)
+    thetahats = Y_samp.mean(dim=1, keepdim=True)                          # (N_NEW, 1)
+    # Var(theta_hat) = Var(Y) / N_B with the unbiased sample variance.
+    sample_var = Y_samp.var(dim=1, keepdim=True, unbiased=True) / N_B      # (N_NEW, 1)
+    return thetahats, sample_var
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--year', type=int, default=2019)
@@ -226,7 +241,18 @@ def main():
                    help="Truncate the unlabeled stream for local testing.")
     p.add_argument('--out_csv', type=str, default='faq.csv')
     p.add_argument('--out_plot', type=str, default='faq_width_coverage.png')
+    p.add_argument('--estimators', type=str, default='classical,uniform+pai,faq',
+                   help="Comma-separated list. Pick any subset of "
+                        "{classical, uniform+pai, faq}. Use this to rerun only "
+                        "missing baselines without redoing FAQ.")
     args = p.parse_args()
+
+    est_set = set(s.strip() for s in args.estimators.split(','))
+    valid = {'classical', 'uniform+pai', 'faq'}
+    bad = est_set - valid
+    if bad:
+        raise ValueError(f"Unknown estimators {bad}; valid: {valid}")
+    print(f"Running estimators: {sorted(est_set)}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
@@ -309,52 +335,65 @@ def main():
     budgets = np.linspace(args.budget_min, args.budget_max, args.num_budgets)
     z_score = norm.ppf(1 - args.alpha / 2)
 
-    # --- Run experiment ---
+    # --- Run experiment (classical, uniform+PAI, FAQ) ---
     rows = []
     counter = 0
     rng = np.random.default_rng(args.seed)
+
+    def record(thetahats, var_tensor, name, N_B):
+        half = z_score * torch.sqrt(var_tensor)
+        lb = (thetahats - half).cpu().numpy().flatten()
+        ub = (thetahats + half).cpu().numpy().flatten()
+        w = ub - lb
+        cov = ((lb <= theta_true) & (theta_true <= ub)).astype(int)
+        prop = N_B / N_QUESTIONS
+        for t in range(N_NEW):
+            rows.append((lb[t], ub[t], w[t], cov[t], name, N_B, prop, t))
+        print(f"  {name:<14s} width={w.mean():.5f}  cov={cov.mean():.3f}")
+
     for b_idx, budget in enumerate(budgets):
         N_B = int(budget * N_QUESTIONS)
         if N_B < 1:
             continue
-        seed = int(rng.integers(0, 2**31 - 1))
+        seed_c = int(rng.integers(0, 2**31 - 1))
+        seed_u = int(rng.integers(0, 2**31 - 1))
+        seed_f = int(rng.integers(0, 2**31 - 1))
         print(f"\n=== Budget {budget:.4f}  (N_B={N_B}, {b_idx+1}/{len(budgets)}) ===")
 
-        thetahats_T, v_T_sq_simp, v_T_sq_full = trial(
-            V=V, Y=Y, MU0=MU0, SIGMA0=SIGMA0, sigma2=sigma2_t,
-            N_NEW=N_NEW, N_QUESTIONS=N_QUESTIONS, N_B=N_B,
-            beta0=args.beta0, rho=args.rho, gamma=args.gamma, tau=args.tau,
-            seed=seed, device=device, counter=counter,
-        )
-        counter += 1
+        # 1) CLASSICAL: uniform sampling + sample mean
+        if 'classical' in est_set:
+            th_c, var_c = trial_classical(
+                Y=Y, N_NEW=N_NEW, N_QUESTIONS=N_QUESTIONS, N_B=N_B,
+                seed=seed_c, device=device,
+            )
+            record(th_c, var_c, "classical", N_B)
+            del th_c, var_c
 
-        # CI from the FULL (debiased) variance formula
-        half_full = z_score * torch.sqrt(v_T_sq_full / N_B)
-        lb_full = (thetahats_T - half_full).cpu().numpy().flatten()
-        ub_full = (thetahats_T + half_full).cpu().numpy().flatten()
-        w_full = (ub_full - lb_full)
-        cov_full = ((lb_full <= theta_true) & (theta_true <= ub_full)).astype(int)
+        # 2) UNIFORM+PAI: trial() with tau=1 -> q_j = 1/N (pure uniform),
+        #    AIPW + online BLR update still on.
+        if 'uniform+pai' in est_set:
+            th_u, v_simp_u, v_full_u = trial(
+                V=V, Y=Y, MU0=MU0, SIGMA0=SIGMA0, sigma2=sigma2_t,
+                N_NEW=N_NEW, N_QUESTIONS=N_QUESTIONS, N_B=N_B,
+                beta0=args.beta0, rho=args.rho, gamma=args.gamma, tau=1.0,
+                seed=seed_u, device=device, counter=counter,
+            )
+            counter += 1
+            record(th_u, v_full_u / N_B, "uniform+pai", N_B)
+            del th_u, v_simp_u, v_full_u
 
-        # CI from the SIMPLE variance formula
-        half_simp = z_score * torch.sqrt(v_T_sq_simp / N_B)
-        lb_simp = (thetahats_T - half_simp).cpu().numpy().flatten()
-        ub_simp = (thetahats_T + half_simp).cpu().numpy().flatten()
-        w_simp = (ub_simp - lb_simp)
-        cov_simp = ((lb_simp <= theta_true) & (theta_true <= ub_simp)).astype(int)
+        # 3) FAQ: adaptive sampling
+        if 'faq' in est_set:
+            th_f, v_simp_f, v_full_f = trial(
+                V=V, Y=Y, MU0=MU0, SIGMA0=SIGMA0, sigma2=sigma2_t,
+                N_NEW=N_NEW, N_QUESTIONS=N_QUESTIONS, N_B=N_B,
+                beta0=args.beta0, rho=args.rho, gamma=args.gamma, tau=args.tau,
+                seed=seed_f, device=device, counter=counter,
+            )
+            counter += 1
+            record(th_f, v_full_f / N_B, "faq", N_B)
+            del th_f, v_simp_f, v_full_f
 
-        for t in range(N_NEW):
-            rows.append((
-                lb_full[t], ub_full[t], w_full[t], cov_full[t], "faq (full var)", N_B,
-            ))
-            rows.append((
-                lb_simp[t], ub_simp[t], w_simp[t], cov_simp[t], "faq (simp var)", N_B,
-            ))
-
-        print(f"  mean width (full)={w_full.mean():.5f}  coverage={cov_full.mean():.3f}")
-        print(f"  mean width (simp)={w_simp.mean():.5f}  coverage={cov_simp.mean():.3f}")
-
-        # free per-budget GPU memory
-        del thetahats_T, v_T_sq_simp, v_T_sq_full
         if device == "cuda":
             torch.cuda.empty_cache()
         gc.collect()
@@ -362,41 +401,20 @@ def main():
     # --- Save CSV ---
     df = pd.DataFrame(
         rows,
-        columns=["lb", "ub", "interval width", "coverage", "estimator", "$n_b$"],
+        columns=["lb", "ub", "mean_width", "coverage", "estimator", "$n_b$",
+                 "prop_budget", "seed"],
     )
     out_csv = os.path.abspath(args.out_csv)
     df.to_csv(out_csv, index=False)
     print(f"\nSaved results to {out_csv}")
 
     summary = df.groupby(['estimator', '$n_b$']).agg(
-        width_mean=('interval width', 'mean'),
+        width_mean=('mean_width', 'mean'),
         coverage_mean=('coverage', 'mean'),
     ).reset_index()
     print("\n=== Summary ===")
     print(summary.to_string(index=False))
-
-    # --- Plot ---
-    try:
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        sns.set_theme(font_scale=1.2, style='white')
-        fig, axs = plt.subplots(1, 2, figsize=(12, 4))
-        sns.lineplot(ax=axs[0], data=df, x='$n_b$', y='interval width',
-                     hue='estimator', alpha=0.9)
-        axs[0].set(xscale='log', yscale='log')
-        axs[0].set_title('Interval width vs. budget')
-        axs[0].grid(True)
-        sns.lineplot(ax=axs[1], data=df, x='$n_b$', y='coverage',
-                     hue='estimator', errorbar=None)
-        axs[1].axhline(1 - args.alpha, color='gray', linestyle='--', alpha=0.7)
-        axs[1].set_ylim([0.6, 1.02])
-        axs[1].set_title(f'Coverage (target = {1 - args.alpha:.2f})')
-        axs[1].grid(True)
-        plt.tight_layout()
-        plt.savefig(args.out_plot, dpi=150)
-        print(f"Saved plot to {args.out_plot}")
-    except Exception as e:
-        print(f"Plot failed (ok): {e}")
+    print(f"\nUse  plot_paper.py {args.out_csv}  to generate paper-style figures.")
 
 
 if __name__ == '__main__':
