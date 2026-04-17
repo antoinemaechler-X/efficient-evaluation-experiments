@@ -37,6 +37,42 @@ more informative about θ than others. This makes h_a non-uniform.
 
 ---
 
+## Posterior Collapse: Verified Diagnosis
+
+We added a diagnostic that measures `mean(v_j^T Σ v_j) / σ²` at the first sampling
+step. This ratio must be ~1 for FAQ's h_o to be non-uniform. When it is <<1,
+`predictive_var ≈ σ²` (constant across all j) and h_o collapses to uniform.
+
+Running `diag_posterior.py` on the full ACS dataset produced:
+
+| n_labeled | ratio  | sigma2 |
+|----------:|-------:|-------:|
+|        50 | 0.4812 | 0.8864 |
+|       100 | 0.1906 | 0.6748 |
+|       200 | 0.0828 | 0.4179 |
+|       500 | 0.0321 | 0.7378 |
+|     2,000 | 0.0079 | 0.8604 |
+|   190,045 | 0.0001 | 0.7776 |
+
+Key findings from this table:
+
+1. **The ratio is purely a function of n_labeled** — it does not depend on V scaling.
+   Normalising V to unit-variance columns makes zero difference (mathematically,
+   scaling V by a constant cancels exactly in v^T Σ v / σ²).
+
+2. **Only n_labeled=50 gives meaningful signal** (ratio~0.48). All our previous
+   low-label experiments used n_labeled ≥ 200 (ratio ≤ 0.08) which is still largely
+   collapsed.
+
+3. **sigma2 is unreliable at very small n_labeled** — with only 50 points and D=16
+   parameters, the OLS residual variance jumps erratically (0.89 → 0.67 → 0.42
+   → 0.74 as n goes 50→100→200→500). The BLR is not well-calibrated in this regime.
+
+4. A job with n_labeled=50 has been submitted (`submit_faq_acs_nlab50.sh`) to check
+   whether ratio~0.48 actually translates to a FAQ advantage in practice.
+
+---
+
 ## The ACS Experiment: A Systematic Elimination
 
 We ran four experiments to isolate the root cause of FAQ's failure on ACS.
