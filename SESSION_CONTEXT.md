@@ -211,3 +211,53 @@ To apply this pipeline to a different dataset:
 5. **Run the pipeline**: Follow the steps above, substituting your dataset name.
 
 The key files to modify are the `DATASETS` list and the data loading paths. The core algorithm code (FAQ scoring, AIPW estimation, CI construction) is self-contained within `faq_val.py` and `faq_final.py`.
+
+---
+
+## ACS Extension: Continuous Regression
+
+We extended FAQ to a **continuous regression** task using the ACS Census 2019 California PUMS dataset.
+See `acs_study/current_work_acs.md` for full design details.
+
+### Goal
+Reproduce Figure 2 of the paper (ESS + coverage vs. budget) but for ACS instead of MMLU-Pro.
+Estimand: mean of z-scored PINCP (personal income) over the unlabeled split.
+
+### Key Design Choices vs. Paper
+
+| Paper | ACS adaptation |
+|-------|---------------|
+| Binary matrix factorization (U,V) | Truncated SVD (top-D singular vectors) of one-hot encoded features → factor matrix V |
+| Factor model for LLM responses (binary) | BLR (Bayesian linear regression) on D-dim SVD factors for continuous income |
+| h_o ∝ √(p(1-p)) | h_o ∝ √(σ² + v_j^T Σ v_j) (predictive std) |
+| h_a via Fisher info with w=p(1-p) | h_a via Fisher info with w=1/σ² (Gaussian noise) |
+| Sherman-Morrison update with w=p(1-p) | Sherman-Morrison update with w=1/σ² |
+| M1/M2 train-test split | 50/50 labeled/unlabeled random split |
+
+Everything else (AIPW, variance estimator, sampling rule, hyperparameters) mirrors `faq_val.py` exactly.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `acs_study/run_faq.py` | Main experiment: BLR-based FAQ on ACS. Supports `--estimators classical,uniform+pai,faq` |
+| `acs_study/plot_paper.py` | Paper-style Figure 2 (same colors/markers/RC as Main Text Figures.ipynb) |
+| `acs_study/utils.py` | Data loading, one-hot encoding, OLS |
+| `acs_study/data/2019/1-Year/psam_p06.csv` | Raw ACS PUMS California (380k rows) |
+| `submit_faq_acs.sh` | Full FAQ run: 100 trials × 11 budgets × D∈{8,16,32} |
+| `submit_faq_acs_baselines.sh` | Baselines only (classical + uniform+pai), array job D∈{8,16,32} |
+| `submit_faq_acs_smoke.sh` | Smoke test: 5 trials, 3 budgets, n_max=10k |
+
+### Current Cluster State (as of last session)
+- `faq_acs_D{8,16,32}.csv` — FAQ only, 100 trials × 11 budgets — **already computed**
+  - Old schema: `lb, ub, interval width, coverage, estimator, $n_b$` (plot_paper.py handles via rename)
+- `submit_faq_acs_baselines.sh` array jobs — **running** — will produce:
+  - `faq_acs_D{8,16,32}_baselines.csv` (classical + uniform+pai)
+  - `faq_acs_D{8,16,32}_figure2.pdf` (merged plot)
+
+### Next Steps When Jobs Finish
+1. `git pull` on cluster → push results (CSV + PDF)
+2. `git pull` locally
+3. Open `faq_acs_D16_figure2.pdf`; compare ESS multipliers across D=8/16/32
+4. Verify: classical width > uniform+pai width > faq width at each budget
+5. Future: Figure 3 analog (missingness), Figure 5 analog (CI-width ratio ablation)

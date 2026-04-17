@@ -3,9 +3,6 @@ data/raw.zip
 data/processed/
 acs_study/data/
 acs_study/*.npz
-acs_study/*.csv
-acs_study/*.png
-acs_study/*.pdf
 
 # OS files
 .DS_Store
