@@ -254,6 +254,9 @@ def main():
     U_svd, s_svd, _ = scipy.sparse.linalg.svds(Phi_all, k=args.D)
     order   = np.argsort(-s_svd)
     V_all   = (U_svd[:, order] * s_svd[order]).astype(np.float64)
+    # Normalize columns to unit variance (same fix as run_faq.py)
+    V_col_std = V_all.std(axis=0, keepdims=True).clip(1e-8)
+    V_all = V_all / V_col_std
     V_lab_np   = V_all[:n_tr]
     V_unlab_np = V_all[n_tr:]
     if args.n_max is not None:

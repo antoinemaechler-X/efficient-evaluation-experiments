@@ -115,6 +115,11 @@ def trial(
 
         # c. predictive variance at each point -> analog of p(1-p)
         vtSigmav_js = torch.einsum("ni,mij,nj->mn", V, Sigmahats, V)     # (N_NEW, N_Q)
+
+        # diagnostic: print ratio at step 0 to check if posterior has signal
+        if s == 0 and counter == 0:
+            ratio = (vtSigmav_js / sigma2).mean().item()
+            print(f"  [diag] vtSigmav/sigma2={ratio:.6f}  (<<1 = posterior collapsed, ~1 = FAQ has signal)")
         predictive_var = (sigma2 + vtSigmav_js).clamp_min(1e-12)         # (N_NEW, N_Q)
         sqrt_pred_std = torch.sqrt(predictive_var)
 
@@ -300,6 +305,11 @@ def main():
     Vt_svd = Vt_svd[order, :]
     # Factor per data point: (n, D) = U_svd * s_svd
     V_all = U_svd * s_svd                                    # (n_all, D)
+    # Normalize columns to unit variance so posterior covariance is well-scaled.
+    # Without this, large singular values make ||v_j||^2 >> 1 and the posterior
+    # collapses to near-zero even with very few labeled points.
+    V_col_std = V_all.std(axis=0, keepdims=True).clip(1e-8)
+    V_all = V_all / V_col_std
     V_lab_np = V_all[:Phi_lab.shape[0]]
     V_unlab_np = V_all[Phi_lab.shape[0]:]
     if args.n_max is not None:
