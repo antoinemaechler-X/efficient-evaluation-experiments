@@ -1,113 +1,108 @@
-Precise Summary of ACS Study Work                                                                                                                                                                                                                                                     
-  Goal
-                                                                                                                                                
-  Reproduce the FAQ/PAI experiments (originally on MMLU/GPQA benchmarks) with the ACS Census 2019 California dataset. Target: estimate the OLS
-  coefficient of AGEP (age) when regressing PINCP (personal income) on (AGEP, SEX) — using adaptive sampling to get valid confidence intervals  
-  with minimal labels.                                                                                                                        
+# ACS Study — Current State
 
-  Files created in acs_study/
+## Goal
 
-  1. utils.py
+Apply the FAQ algorithm (from the paper) to the ACS Census 2019 California dataset, producing
+figures that look like Figure 2 of the paper but for a continuous regression task instead of
+binary LLM evaluation.
 
-  Adapted from tijana-zrnic/active-inference. Three functions:
-  - get_data(year, features, outcome) — loads ACS CA data from local CSV (acs_study/data/2019/1-Year/psam_p06.csv), falls back to folktables
-  download if missing. Reads only needed columns to avoid OOM.
-  - transform_features(features, ft, enc=None) — one-hot encodes categoricals, keeps quantitatives. Returns sparse CSC matrix.
-  - ols(features, outcome) — OLS via pseudo-inverse.
+**Estimand**: mean of z-scored PINCP (personal income) over the unlabeled split.
+- Why mean, not OLS coefficient? Chosen for simplicity so the FAQ AIPW formulas apply verbatim.
+- Why z-score? Makes CI widths scale-independent for comparison.
+- theta_true ≈ 0 (close to 0 because z-score is relative to labeled mean/std).
 
-  2. train_model.py
+---
 
-  Trains two XGBoost regressors (reg:absoluteerror / median regression), mirroring the census-analysis notebook:
-  - Primary model: predicts PINCP from 17 demographic features.
-  - Error model: predicts |y - ŷ| — used as per-point uncertainty.
+## Files
 
-  Saves 4 artefacts (all needed for FAQ):
-  - <stem>.npz — Y, Yhat, predicted_errs, X (AGE,SEX for unlabeled), theta_true
-  - <stem>.tree.json — XGBoost booster (for fine-tuning)
-  - <stem>.tree_err.json — error booster
-  - <stem>.features.npz — encoded unlabeled feature matrix (sparse)
+### Data / preprocessing
+| File | Purpose |
+|------|---------|
+| `utils.py` | `get_data`, `transform_features` (one-hot), `ols`. Reads from local CSV to avoid OOM. |
+| `load_data.py`, `check_data.py` | Data verification utilities |
+| `data/2019/1-Year/psam_p06.csv` | Raw ACS PUMS California (380k rows, on cluster + locally) |
 
-  Key args: --n_rounds (200 quick / 2000 full), --n_labeled (absolute number of training labels, overrides --train_frac), --seed.
+### Experiments
+| File | Purpose | Status |
+|------|---------|--------|
+| `train_model.py` | Trains two XGBoost regressors (PINCP + error magnitude). Saves `.npz`, `.tree.json`, `.tree_err.json`, `.features.npz` | Working. Used only by `run_baseline.py` now. |
+| `run_baseline.py` | One-shot active inference (no fine-tuning). Three estimators: active, uniform, classical. Sandwich CI. | Verified working locally |
+| `run_faq.py` | **Main experiment**. BLR-based FAQ. See design below. | Tested locally + on cluster (FAQ pass, baselines running) |
 
-  3. run_baseline.py — VERIFIED WORKING
+### Plotting
+| File | Purpose |
+|------|---------|
+| `plot_paper.py` | **Paper Figure 2 style**: ESS vs budget (top) + coverage (bottom). Same RC params/colors/markers as `Main Text Figures.ipynb`. |
+| `plot_faq.py` | Older seaborn-based plot. Less polished, kept for quick checks. |
 
-  Reproduces census-analysis.ipynb (one-shot active inference, no fine-tuning). Three estimators compared across budgets:
-  - active — Bernoulli sampling with probs ∝ uncertainty, AIPW estimator
-  - uniform — Bernoulli sampling at fixed budget rate, AIPW estimator
-  - classical — no ML predictions, just Horvitz-Thompson
+### sbatch scripts (repo root)
+| File | Purpose |
+|------|---------|
+| `submit_faq_acs_smoke.sh` | Smoke test: 5 trials, 3 budgets, n_max=10k. Runs + plots. |
+| `submit_faq_acs.sh` | Full FAQ run: 100 trials, 11 budgets, D∈{8,16,32}. FAQ only. |
+| `submit_faq_acs_baselines.sh` | Baselines only (classical + uniform+pai): 100 trials, 11 budgets, D∈{8,16,32}. Plots at end. |
 
-  Uses sandwich variance for CIs. Default: 11 budgets from 0.5% to 10%, target coverage 90%.
+---
 
-  4. run_faq.py — NOT YET TESTED
+## Design Choices
 
-  Sequential PAI/FAQ, adapted from census-analysis-sequential.ipynb. Per trial:
-  - Random permutation of the unlabeled stream
-  - Iterate point-by-point; at each step compute adaptive sampling prob (mixes uncertainty-weighted + uniform via tau, with a "greedy terminal
-  samples" mechanism to exhaust remaining budget)
-  - After every batch_size labels, fine-tune the XGBoost model on the newly-labeled batch → updates Yhat and predicted_errs for future sampling
-  - Also run a coupled "no fine-tuning" version + uniform for comparison
+### Prediction model: BLR (not XGBoost)
+- XGBoost has no clean Bayesian posterior → no analog for FAQ's active-learning score h_a.
+- BLR (Bayesian linear regression) on D-dim SVD factors has a closed-form posterior → full FAQ structure preserved.
+- Factor matrix V: truncated SVD (top-D singular vectors × singular values) of the stacked encoded feature matrix (one-hot categoricals + continuous). D=16 default.
+- Prior: Normal(0, τ²I), τ=10. Posterior: closed-form on labeled split.
+- sigma2: OLS residual variance on labeled split (homoscedastic assumption).
 
-  Three estimators: active (w/ fine-tuning), active (no fine-tuning), uniform.
+### Sampling and AIPW
+- Exactly mirrors `faq_val.py`:
+  - Oracle score h_o ∝ √(σ² + v_j^T Σ v_j) (predictive std; analog of √p(1-p))
+  - Active score h_a ∝ |Σv̄·V_j|² / (σ² + v_j^T Σ v_j) (info gain on E[Y]; derived from Fisher info with w=1/σ²)
+  - α_s (exploration), β_s (tempering), τ (uniform mix) — identical to paper
+  - Multinomial WITH replacement, fixed budget N_B = int(budget × N_QUESTIONS)
+  - Sherman-Morrison posterior update with w = 1/σ² (analog of p(1-p))
+- AIPW: φ_s = Σ_j ŷ_j + (y_Is − ŷ_Is)/q_s(Is) — identical to paper
+- Variance: v_T_sq_simp − v_T_sq_minus — identical to paper
 
-  5. check_data.py, load_data.py — data verification
+### Three estimators
+| Estimator | Role | How |
+|-----------|------|-----|
+| `classical` | "Uniform" in paper | Uniform w-replacement sampling + sample mean. No AIPW, no ML. |
+| `uniform+pai` | "Best Baseline" in paper | trial() with τ=1.0 → uniform q_j=1/N. AIPW + online BLR. |
+| `faq` | FAQ | Adaptive sampling with h_o + h_a. AIPW + online BLR. |
 
-  6. environment_local.yml
+### Hyperparameters (defaults)
+- D=16, prior_tau=10, tau=0.1, beta0=1.0, rho=0.05, gamma=0.25
+- num_trials=100, num_budgets=11, budget_min=0.005, budget_max=0.10
+- train_frac=0.5 (190k labeled, 190k unlabeled), seed=0
 
-  Local conda env (acs_env), mirrors cluster faq_env except drops linux/CUDA packages. Contains: numpy, scipy, pandas, scikit-learn, matplotlib,
-   seaborn, xgboost, folktables, tqdm.
+---
 
-  Files at repo root
+## Current Status
 
-  - GIT_WORKFLOW.md — reference doc for local↔cluster workflow
-  - .gitignore — excludes big data/.npz/experiment logs
+### Already computed (on cluster)
+- `faq_acs_D8.csv`, `faq_acs_D16.csv`, `faq_acs_D32.csv` — FAQ only, 100 trials × 11 budgets
+  - Schema: lb, ub, interval width, coverage, estimator, $n_b$ (OLD schema, no seed/prop_budget columns)
+  - `plot_paper.py` handles the old schema via column renaming + cumcount for trial index
 
-  Git setup (complete)
+### Currently running (cluster)
+- `submit_faq_acs_baselines.sh` — 3 array jobs (D=8,16,32) computing classical + uniform+pai
+  - Will produce: `faq_acs_D8_baselines.csv`, `faq_acs_D16_baselines.csv`, `faq_acs_D32_baselines.csv`
+  - Will produce: `faq_acs_D8_figure2.pdf`, `faq_acs_D16_figure2.pdf`, `faq_acs_D32_figure2.pdf`
+  - Runtime estimate: ~1-2h per job on GPU
 
-  - origin → https://github.com/antoinemaechler-X/efficient-evaluation-experiments.git (user's repo)
-  - upstream → skbwu's original repo (unchanged)
-  - Both local and cluster configured the same way, main tracking origin/main.
+### Next steps when jobs finish
+1. `git pull` on cluster → push results
+2. `git pull` locally
+3. Open `faq_acs_D16_figure2.pdf` (or re-plot locally with `plot_paper.py`)
+4. Compare ESS multipliers across D=8/16/32 — if similar, D=8 is sufficient
+5. Compare widths: classical > uniform+pai > faq at each budget?
 
-  Status
+---
 
-  Verified locally:
-  - Data loads correctly (380,091 CA rows)
-  - train_model.py with 200 rounds produces predictions_test.npz
-  - train_model.py with 2000 rounds produced full predictions.npz
-  - run_baseline.py ran successfully (100 trials × 10 budgets) — active beats uniform beats classical as expected, ~90% coverage everywhere ✓
+## Mapping to Paper Figures
 
-  Just added, not yet tested:
-  - run_faq.py (sequential PAI with fine-tuning)
-  - Updated train_model.py to save models + encoded features
-
-  Immediate next step (what the user should run)
-
-  Since old predictions_test.npz lacks the new companion files (.tree.json, .tree_err.json, .features.npz), re-run train first, then FAQ smoke
-  test:
-
-  cd ~/efficiently-evaluating-llms/acs_study
-
-  python train_model.py --n_rounds 200 --n_labeled 400 --out predictions_test.npz
-
-  python run_faq.py --predictions predictions_test.npz \
-      --num_trials 3 --num_budgets 3 --budget_min 0.01 --budget_max 0.05 \
-      --batch_size 500 --ft_steps 100 --greedy_steps 200 \
-      --n_max 20000 \
-      --out_csv faq_test.csv --out_plot faq_test.png
-
-  Should finish in a few minutes. If it works:
-  1. Push everything to GitHub
-  2. Pull on cluster
-  3. Check faq_env has xgboost/folktables/seaborn; pip install any missing
-  4. Re-run train_model.py on cluster (or scp artefacts), then submit FAQ as sbatch job
-
-  PhD student's instructions (applied)
-
-  - Budgets from 0.5% to 10% ✓ (11 evenly-spaced values)
-  - "0.1% training labels" we add this bidget to see.
-
-  Open / unfinished
-
-  - FAQ smoke test not run yet
-  - run_faq.py has a Python per-point inner loop over N≈190k — this is inherently slow. Local testing uses --n_max to truncate. Full cluster run
-   will take hours.
-  - Cluster env faq_env may need pip install xgboost folktables seaborn — user should check before submitting sbatch.
+| Paper Figure | ACS equivalent | Notes |
+|---|---|---|
+| Figure 2 (ESS + coverage, fully-observed) | `plot_paper.py` output | Single dataset panel instead of 2 |
+| Figure 3 (ESS under missingness) | Not yet done | Would require simulating missing data in V |
+| Figure 5 (CI-width ratio ablation/FAQ) | Not yet done | Would require varying τ for uniform+pai |

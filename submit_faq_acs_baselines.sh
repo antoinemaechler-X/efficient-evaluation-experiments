@@ -27,3 +27,7 @@ D=${Ds[$SLURM_ARRAY_TASK_ID]}
 
 echo "Task $SLURM_ARRAY_TASK_ID: D=$D (baselines only)"
 python run_faq.py --num_trials 100 --num_budgets 11 --budget_min 0.005 --budget_max 0.10 --D $D --estimators classical,uniform+pai --out_csv faq_acs_D${D}_baselines.csv --out_plot /dev/null
+
+echo "Plotting..."
+python plot_paper.py faq_acs_D${D}.csv faq_acs_D${D}_baselines.csv --out faq_acs_D${D}_figure2.pdf
+echo "Done. Figure saved to acs_study/faq_acs_D${D}_figure2.pdf"
