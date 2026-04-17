@@ -20,6 +20,6 @@ cd ~/efficiently-evaluating-llms/acs_study
 mkdir -p ../logs/acs
 
 echo "=== ACS FAQ smoke test ==="
-python run_faq.py --num_trials 5 --num_budgets 3 --budget_min 0.025 --budget_max 0.10 --n_max 10000 --D 8 --out_csv faq_smoke.csv --out_plot /dev/null
-python plot_paper.py faq_smoke.csv --out faq_smoke_figure2.pdf
+python run_faq.py --num_trials 5 --num_budgets 3 --budget_min 0.025 --budget_max 0.10 --n_max 10000 --D 8 --estimators faq,classical,uniform+pai --out_csv faq_smoke.csv --out_plot /dev/null
+python plot_paper.py faq_smoke.csv --out faq_smoke_figure2.png
 echo "=== done ==="
