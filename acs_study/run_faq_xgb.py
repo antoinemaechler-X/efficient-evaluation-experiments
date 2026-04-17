@@ -271,14 +271,14 @@ def main():
     dtrain = xgb.DMatrix(Phi_lab, label=y_lab_n)
     dunlab = xgb.DMatrix(Phi_unlab)
     xgb_params = {
-        "objective":       "reg:squarederror",
-        "max_depth":       args.xgb_depth,
-        "learning_rate":   args.xgb_lr,
-        "subsample":       0.8,
+        "objective":        "reg:squarederror",
+        "max_depth":        args.xgb_depth,
+        "learning_rate":    args.xgb_lr,
+        "subsample":        0.8,
         "colsample_bytree": 0.8,
-        "tree_method":     "gpu_hist" if torch.cuda.is_available() else "hist",
-        "device":          "cuda" if torch.cuda.is_available() else "cpu",
-        "verbosity":       0,
+        "tree_method":      "hist",
+        "device":           "cuda" if torch.cuda.is_available() else "cpu",
+        "verbosity":        0,
     }
     bst = xgb.train(
         xgb_params, dtrain,
