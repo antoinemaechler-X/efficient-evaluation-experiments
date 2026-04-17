@@ -305,11 +305,6 @@ def main():
     Vt_svd = Vt_svd[order, :]
     # Factor per data point: (n, D) = U_svd * s_svd
     V_all = U_svd * s_svd                                    # (n_all, D)
-    # Normalize columns to unit variance so posterior covariance is well-scaled.
-    # Without this, large singular values make ||v_j||^2 >> 1 and the posterior
-    # collapses to near-zero even with very few labeled points.
-    V_col_std = V_all.std(axis=0, keepdims=True).clip(1e-8)
-    V_all = V_all / V_col_std
     V_lab_np = V_all[:Phi_lab.shape[0]]
     V_unlab_np = V_all[Phi_lab.shape[0]:]
     if args.n_max is not None:
