@@ -217,7 +217,7 @@ The key files to modify are the `DATASETS` list and the data loading paths. The 
 ## ACS Extension: Continuous Regression
 
 We extended FAQ to a **continuous regression** task using the ACS Census 2019 California PUMS dataset.
-See `acs_study/current_work_acs.md` for full design details.
+See `acs_study/current_work_acs.md` for full design details and `acs_study/faq_findings.md` for findings.
 
 ### Goal
 Reproduce Figure 2 of the paper (ESS + coverage vs. budget) but for ACS instead of MMLU-Pro.
@@ -234,30 +234,35 @@ Estimand: mean of z-scored PINCP (personal income) over the unlabeled split.
 | Sherman-Morrison update with w=p(1-p) | Sherman-Morrison update with w=1/σ² |
 | M1/M2 train-test split | 50/50 labeled/unlabeled random split |
 
-Everything else (AIPW, variance estimator, sampling rule, hyperparameters) mirrors `faq_val.py` exactly.
+### Key Finding: FAQ = uniform+PAI on ACS (investigation complete)
+
+**FAQ provides no benefit over uniform+PAI on ACS.** This is a genuine result, not a bug.
+
+**Root cause**: ACS income residuals are approximately homoscedastic. FAQ's h_o ∝ √(σ² + v_j^T Σ v_j)
+collapses to √σ² ≈ constant for all j. Binary outcomes (paper) provide intrinsic heterogeneity via
+p_j(1−p_j); continuous outcomes require heteroscedastic residuals, which ACS income lacks.
+
+Four hypotheses were systematically eliminated:
+1. Posterior collapse (190k labels) → tested low-label regime → still equal
+2. Weak model (R²=0.22) → tested D=128, XGBoost (R²≈0.5) → still equal
+3. Coupled prediction/uncertainty → XGBoost+BLR hybrid → still equal
+4. **Root cause**: homoscedastic continuous data — confirmed via vtSigmav/σ² diagnostic
+
+AIPW (uniform+PAI) still beats classical: ~1.3× with BLR, ~1.6× with XGBoost. ESS ceiling = 1/(1-R²).
 
 ### Files
 
 | File | Purpose |
 |------|---------|
-| `acs_study/run_faq.py` | Main experiment: BLR-based FAQ on ACS. Supports `--estimators classical,uniform+pai,faq` |
-| `acs_study/plot_paper.py` | Paper-style Figure 2 (same colors/markers/RC as Main Text Figures.ipynb) |
-| `acs_study/utils.py` | Data loading, one-hot encoding, OLS |
-| `acs_study/data/2019/1-Year/psam_p06.csv` | Raw ACS PUMS California (380k rows) |
-| `submit_faq_acs.sh` | Full FAQ run: 100 trials × 11 budgets × D∈{8,16,32} |
-| `submit_faq_acs_baselines.sh` | Baselines only (classical + uniform+pai), array job D∈{8,16,32} |
-| `submit_faq_acs_smoke.sh` | Smoke test: 5 trials, 3 budgets, n_max=10k |
+| `acs_study/run_faq.py` | BLR-based FAQ, `--estimators`, `--D`, `--n_labeled` configurable |
+| `acs_study/run_faq_xgb.py` | Hybrid XGBoost+BLR experiment |
+| `acs_study/plot_paper.py` | Paper-style Figure 2 (handles old/new CSV schemas) |
+| `acs_study/diag_posterior.py` | Prints vtSigmav/σ² ratio vs n_labeled |
+| `acs_study/faq_findings.md` | Full investigation: when FAQ works/fails, all hypotheses, next steps |
+| `acs_study/current_work_acs.md` | File list, design, current status |
 
-### Current Cluster State (as of last session)
-- `faq_acs_D{8,16,32}.csv` — FAQ only, 100 trials × 11 budgets — **already computed**
-  - Old schema: `lb, ub, interval width, coverage, estimator, $n_b$` (plot_paper.py handles via rename)
-- `submit_faq_acs_baselines.sh` array jobs — **running** — will produce:
-  - `faq_acs_D{8,16,32}_baselines.csv` (classical + uniform+pai)
-  - `faq_acs_D{8,16,32}_figure2.pdf` (merged plot)
-
-### Next Steps When Jobs Finish
-1. `git pull` on cluster → push results (CSV + PDF)
-2. `git pull` locally
-3. Open `faq_acs_D16_figure2.pdf`; compare ESS multipliers across D=8/16/32
-4. Verify: classical width > uniform+pai width > faq width at each budget
-5. Future: Figure 3 analog (missingness), Figure 5 analog (CI-width ratio ablation)
+### Current Status
+**Paused.** Investigation complete and documented.
+- `submit_faq_acs_nlab50.sh` submitted (n_labeled=50, max possible signal). Results pending.
+- When returning: pull results, check if FAQ wins at n_labeled=50 (ratio≈0.48).
+- If not, find a heteroscedastic dataset (see `faq_findings.md` for criteria).

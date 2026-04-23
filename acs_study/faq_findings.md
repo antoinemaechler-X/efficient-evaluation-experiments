@@ -144,6 +144,32 @@ could exploit.
 
 ---
 
+## Binary vs Continuous: A Fundamental Asymmetry
+
+A key insight is that the **binary outcome structure of the paper's setting provides
+heterogeneity for free**, whereas continuous outcomes require it to come from elsewhere.
+
+**Binary (paper)**:
+- h_o ∝ √(p_j(1−p_j)) varies across questions purely from the data structure
+- Easy questions (p_j≈0 or 1) → low h_o; hard questions (p_j≈0.5) → high h_o
+- This heterogeneity exists **even with a perfectly fitted model** — it is an
+  irreducible property of the questions themselves
+- FAQ exploits this without needing posterior uncertainty
+
+**Continuous (ACS)**:
+- h_o ∝ √(σ² + v_j^T Σ v_j) — heterogeneity comes **only** from posterior uncertainty
+- With a well-fitted model (Σ→0), h_o collapses to √σ² = constant for all j
+- There is no continuous analog of "easy/hard questions"
+- For FAQ to have signal, the data must have **heteroscedastic noise** (σ²_j varying
+  across j), which ACS income does not have
+
+This means: for continuous outcomes, FAQ needs an additional structural property
+(heteroscedastic residuals) that binary outcomes provide automatically. The ACS
+failure is partly inherent to the continuous setting and partly specific to income
+prediction being approximately homoscedastic.
+
+---
+
 ## The Root Cause: Structural Mismatch
 
 | Property | LLM evaluation (FAQ works) | ACS income (FAQ fails) |
