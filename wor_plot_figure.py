@@ -56,12 +56,12 @@ fig = plt.figure(dpi=400, figsize=(6.5, 2.7))
 gs = gridspec.GridSpec(3, 2)
 
 datasets_config = [
-    ("mmlu-pro", "MMLU-Pro", 0, 16000, f"Budget (Out of {N_QUESTIONS['mmlu-pro']} Total Questions)"),
-    ("bbh+gpqa+ifeval+math+musr", "BBH+GPQA+IFEval+MATH+MuSR", 1, 11000,
+    ("mmlu-pro", "MMLU-Pro", 0, f"Budget (Out of {N_QUESTIONS['mmlu-pro']} Total Questions)"),
+    ("bbh+gpqa+ifeval+math+musr", "BBH+GPQA+IFEval+MATH+MuSR", 1,
      f"Budget (Out of {N_QUESTIONS['bbh+gpqa+ifeval+math+musr']} Total Questions)"),
 ]
 
-for dataset, title, col, ylim_top, xlabel in datasets_config:
+for dataset, title, col, xlabel in datasets_config:
     nq = N_QUESTIONS[dataset]
 
     # Query data
@@ -100,7 +100,6 @@ for dataset, title, col, ylim_top, xlabel in datasets_config:
 
     ax_ess.grid()
     ax_ess.set_title(title)
-    ax_ess.set_ylim(top=ylim_top)
     if col == 0:
         ax_ess.set_ylabel("Effective Sample Size")
     ax_ess.tick_params(axis="x", labelbottom=False)

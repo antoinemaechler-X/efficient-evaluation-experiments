@@ -64,13 +64,12 @@ def trial_faq_wor(
     # Unnormalized accumulator: Σ_t φ_t (without the 1/N factor, divided at the end)
     thetahats = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
 
-    # Variance accumulators (same structure as original)
-    # Σ_t ((z_{I_t} - p̂_{I_t}) / q_t(I_t))^2
+    # Variance accumulators — correct WOR formula (Theorem 4 of PAI paper)
+    # A_hat: Σ_t ((y_{I_t} - f^{(t-1)}(x_{I_t})) / q_t(I_t))^2
     varhats_main = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
-    # Σ_t (z_{I_t} / q_t(I_t))
-    varhats_inner1 = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
-    # imputed_sum^{(t)} for each t (replaces prob_sums in the original)
-    varhats_inner2 = torch.zeros(N_NEW, N_B, dtype=torch.float32, device=device)
+    # B_hat: Σ_{t=2}^n (N*theta_hat_{t-1} - imputed_sum_t)^2
+    # where N*theta_hat_{t-1} = (1/(t-1)) * Σ_{s<t} phi_s  (running average of past phis)
+    varhats_b = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
 
     # Set seed
     torch.random.manual_seed(seed)
@@ -159,12 +158,18 @@ def trial_faq_wor(
 
         # --- φ_t (unnormalized: without 1/N factor) ---
         phi_t = imputed_sum + aipw_t
+
+        # --- B_hat accumulator: (N*theta_hat_{t-1} - imputed_sum_t)^2 for t >= 2 ---
+        # N*theta_hat_{t-1} = thetahats / t  (thetahats holds sum of phi_s for s < t)
+        # Paper sums from t=2; in 0-indexed loop this means t >= 1.
+        if t >= 1:
+            ntheta_prev = thetahats / t  # = (1/(t)) * Σ_{s=0}^{t-1} phi_s  [unnorm, = N*theta_hat_{t-1}]
+            varhats_b += (ntheta_prev - imputed_sum) ** 2
+
         thetahats += phi_t
 
-        # --- Variance accumulator updates ---
+        # --- A_hat accumulator ---
         varhats_main += (aipw_t ** 2)
-        varhats_inner1 += (z_It / q_It)
-        varhats_inner2[:, t] = imputed_sum.flatten()
 
         # ============================================================
         # PART 3: Update observed set O_t = O_{t-1} ∪ {I_t}
@@ -194,11 +199,12 @@ def trial_faq_wor(
     # θ̂_n = (1/n) · (1/N) · Σ_t φ_t  (φ_t was accumulated without 1/N)
     thetahats_T = thetahats / (N_B * N_QUESTIONS)
 
-    # Variance estimation (same doubly-robust formula)
+    # Variance estimation — correct WOR formula (Theorem 4):
+    # sigma_hat^2 = A_hat - B_hat
+    # A_hat = (1/(n*N^2)) * Σ_t (y_{I_t} - f_{I_t})^2 / q_t^2
+    # B_hat = (1/(n*N^2)) * Σ_{t=2}^n (N*theta_hat_{t-1} - imputed_sum_t)^2
     v_T_sq_simp = varhats_main / (N_B * (N_QUESTIONS ** 2))
-
-    v_T_sq_minus = (((varhats_inner1 / N_B) - varhats_inner2) ** 2).sum(dim=1, keepdim=True)
-    v_T_sq_minus /= (N_B * (N_QUESTIONS ** 2))
+    v_T_sq_minus = varhats_b / (N_B * (N_QUESTIONS ** 2))
 
     v_T_sq_full = (v_T_sq_simp - v_T_sq_minus).clamp(min=0)
 
@@ -240,8 +246,7 @@ def trial_ablation_wor(
     observed = torch.zeros(N_NEW, N_QUESTIONS, dtype=torch.bool, device=device)
     thetahats = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
     varhats_main = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
-    varhats_inner1 = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
-    varhats_inner2 = torch.zeros(N_NEW, N_B, dtype=torch.float32, device=device)
+    varhats_b = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
 
     torch.random.manual_seed(seed)
 
@@ -276,11 +281,13 @@ def trial_ablation_wor(
 
         aipw_t = (z_It - phat_It) / q_It
         phi_t = imputed_sum + aipw_t
-        thetahats += phi_t
 
+        if t >= 1:
+            ntheta_prev = thetahats / t
+            varhats_b += (ntheta_prev - imputed_sum) ** 2
+
+        thetahats += phi_t
         varhats_main += (aipw_t ** 2)
-        varhats_inner1 += (z_It / q_It)
-        varhats_inner2[:, t] = imputed_sum.flatten()
 
         # Update observed set
         observed.scatter_(dim=1, index=I_t, value=True)
@@ -300,8 +307,7 @@ def trial_ablation_wor(
     # --- CI construction ---
     thetahats_T = thetahats / (N_B * N_QUESTIONS)
     v_T_sq_simp = varhats_main / (N_B * (N_QUESTIONS ** 2))
-    v_T_sq_minus = (((varhats_inner1 / N_B) - varhats_inner2) ** 2).sum(dim=1, keepdim=True)
-    v_T_sq_minus /= (N_B * (N_QUESTIONS ** 2))
+    v_T_sq_minus = varhats_b / (N_B * (N_QUESTIONS ** 2))
     v_T_sq_full = (v_T_sq_simp - v_T_sq_minus).clamp(min=0)
 
     z_score = norm.ppf(1 - (ALPHA / 2))
