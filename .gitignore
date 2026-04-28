@@ -5,6 +5,8 @@ acs_study/data/
 acs_study/*.npz
 logs/acs/
 
+cleaned_processes/acs_study/data
+
 # OS files
 .DS_Store
 __pycache__/
@@ -19,3 +21,6 @@ factor_models/
 # Env files
 *.egg-info/
 environment_local.yml
+
+#zip files
+*.zip

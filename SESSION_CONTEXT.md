@@ -95,7 +95,48 @@ These reproduce the paper exactly. **Do not modify.**
 | `Appendix B Figures.ipynb` / `Appendix D Figures.ipynb` | Appendix figures |
 
 ### New extension files (untracked, created during our sessions)
-These extend the paper to higher budgets (25%-50%) and additional experiments.
+These extend the paper to higher budgets (25%-50%), additional experiments, and the WOR extension.
+
+#### WOR (Without-Replacement) Extension — NEW
+
+New PAI estimator (equation 2) that samples WITHOUT replacement. Full-stack reproduction of Figure 1 (ESS + coverage, fully-observed only, both datasets, budgets 2.5%-25%).
+
+| File | Purpose | Notes |
+|------|---------|-------|
+| `wor_trial.py` | Core WOR-PAI trial functions: `trial_faq_wor`, `trial_ablation_wor` | Import from other WOR scripts |
+| `wor_faq_val.py` | Tune FAQ hyperparams on M1 val (WOR) | `python wor_faq_val.py <dataset_idx> <gamma_idx>` |
+| `wor_faq_final.py` | Run WOR-FAQ on M2 | `python wor_faq_final.py <seed_chunk 0-2>` |
+| `wor_ablation.py` | Ablation (Z&C scoring + factor model + WOR PAI) — curiosity | `python wor_ablation.py <dataset_idx> <seed_chunk>` |
+| `wor_baselines.py` | Baselines (unif/sqrt/2min × taus, static PHATS) — curiosity | `python wor_baselines.py <dataset_idx> <seed_chunk>` |
+| `wor_val_analyzer.py` | Extract best FAQ settings → `logs/val/wor_best_settings.csv` | Run after validation |
+| `wor_cleaning_results.py` | Combine WOR-FAQ with ORIGINAL baseline results; process curiosity results if present | Run after FAQ final |
+| `wor_plot_figure.py` | Produce `figures/wor_ess+coverage_fully-observed.pdf` | Run after cleaning |
+| `submit_wor_faq_val.sh` | 10 SLURM jobs (2 datasets × 5 gammas) | |
+| `submit_wor_faq_final.sh` | 3 SLURM jobs (seed chunks) | Needs `wor_best_settings.csv` |
+| `submit_wor_ablation.sh` | 6 SLURM jobs (2 datasets × 3 seed chunks) | Curiosity, independent |
+| `submit_wor_baselines.sh` | 6 SLURM jobs (2 datasets × 3 seed chunks) | Curiosity, independent |
+
+**Comparison strategy**: WOR FAQ vs **original (with-replacement) baselines** — we only improved our method, not theirs. ESS multiplier computed vs original uniform. WOR baselines/ablation are curiosity-only.
+
+**Pipeline**:
+```bash
+# Step 1 — all in parallel:
+sbatch submit_wor_faq_val.sh      # FAQ validation (needed)
+sbatch submit_wor_baselines.sh    # curiosity, independent
+sbatch submit_wor_ablation.sh     # curiosity, independent
+
+# After validation:
+python wor_val_analyzer.py        # → logs/val/wor_best_settings.csv
+sbatch submit_wor_faq_final.sh
+
+# After FAQ final:
+python wor_cleaning_results.py    # uses EXISTING original baseline CSVs
+python wor_plot_figure.py
+```
+
+**Status**: Validation + curiosity jobs pushed to cluster and results returned locally ✅. Next: `python wor_val_analyzer.py` then `sbatch submit_wor_faq_final.sh`.
+
+#### High-budget / other extensions
 
 | File | Purpose | Notes |
 |------|---------|-------|
