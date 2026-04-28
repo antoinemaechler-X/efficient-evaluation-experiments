@@ -11,7 +11,7 @@ __pycache__/
 *.pyc
 
 # Experiment outputs (large, cluster-specific)
-logs/final/
+logs/final/backup_old_variance/
 logs/val/
 logs/coverage_analysis/
 factor_models/
