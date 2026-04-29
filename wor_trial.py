@@ -31,7 +31,8 @@ def trial_faq_wor(
     M2, V, MU0, SIGMA0,
     N_NEW, N_QUESTIONS, N_B,
     beta0, rho, gamma, tau, seed, device,
-    ALPHA=0.05, counter=0, disable_tqdm=True):
+    ALPHA=0.05, counter=0, disable_tqdm=True,
+    log_profile=False):
     """
     Run one FAQ trial with WITHOUT-REPLACEMENT sampling.
 
@@ -47,9 +48,14 @@ def trial_faq_wor(
         seed: random seed
         device: torch device
         ALPHA: significance level for CIs (default 0.05)
+        log_profile: if True, log per-step conditional variance v_s
+            (averaged across models) for computing the non-stationarity
+            index Λ. See notes/wor_coverage_analysis.md §4.3–4.4.
 
     Returns:
-        [mean_width, coverage]
+        [mean_width, coverage] if log_profile=False
+        [mean_width, coverage, v_profile] if log_profile=True,
+            where v_profile is a (N_B,) numpy array of per-step v_s
     """
     from tqdm.autonotebook import tqdm
 
@@ -70,6 +76,11 @@ def trial_faq_wor(
     # B_hat: Σ_{t=2}^n (N*theta_hat_{t-1} - imputed_sum_t)^2
     # where N*theta_hat_{t-1} = (1/(t-1)) * Σ_{s<t} phi_s  (running average of past phis)
     varhats_b = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
+
+    # Per-step variance profile for non-stationarity index (§4.3)
+    if log_profile:
+        import numpy as np
+        v_profile = np.zeros(N_B)
 
     # Set seed
     torch.random.manual_seed(seed)
@@ -156,6 +167,19 @@ def trial_faq_wor(
         # (1/N) · (y_{I_t} - f^{(t-1)}(x_{I_t})) / q_t(I_t)
         aipw_t = (z_It - phat_It) / q_It
 
+        # --- Log per-step conditional variance v_s (§4.3) ---
+        if log_profile:
+            # v_s = E[Δ_s^2 | F_{s-1}] = (1/N^2)[Σ_{i∉O} (y_i - f_i)^2/q_s(i) - (Σ_{i∉O} (y_i - f_i))^2]
+            unobs_mask = ~observed  # (N_NEW, N_QUESTIONS)
+            residuals = (M2 - p_hat_js) * unobs_mask.float()  # (N_NEW, N_QUESTIONS)
+            # A component: Σ (y_i - f_i)^2 / q_s(i) over unobserved
+            q_safe = q_js.clamp(min=1e-12)
+            a_step = ((residuals ** 2) / q_safe * unobs_mask.float()).sum(dim=1) / (N_QUESTIONS ** 2)
+            # B component: (Σ (y_i - f_i))^2 over unobserved
+            b_step = (residuals.sum(dim=1) ** 2) / (N_QUESTIONS ** 2)
+            # v_s averaged across models
+            v_profile[t] = (a_step - b_step).mean().item()
+
         # --- φ_t (unnormalized: without 1/N factor) ---
         phi_t = imputed_sum + aipw_t
 
@@ -222,6 +246,8 @@ def trial_faq_wor(
     mean_width = (ub - lb).mean().item()
     coverage = ((lb <= mus_M2) & (mus_M2 <= ub)).mean(dtype=float).item()
 
+    if log_profile:
+        return [mean_width, coverage, v_profile]
     return [mean_width, coverage]
 
 
