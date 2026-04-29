@@ -90,83 +90,197 @@ where:
 
 The paper bounds: $\mathbb{E}[T_1] = O(\log n / n)$, $\mathbb{E}[T_2] = O(1/\sqrt{n})$, $\mathbb{E}[T_3] = O(1/n)$, so all vanish asymptotically.
 
-### 4.3 Why the *Relative* Bias Grows: The Core Mechanism
+### 4.3 Exact $\mathbb{E}[T_1]$ via Exchanged Sums
 
-The bias that matters for coverage is the *relative* bias:
+$T_1$ is the dominant bias term. Recall $T_1 = \frac{1}{n}\sum_{t=2}^{n}(\hat{\theta}_{t-1} - \theta)^2$, where $\hat{\theta}_{t-1} = \frac{1}{t-1}\sum_{s=1}^{t-1}\phi_s$ is the running average.
 
-$$\frac{\mathbb{E}[\hat{B}_n - B_n]}{\sigma^2} = \frac{\mathbb{E}[T_1 + T_2 - T_3]}{A_n - B_n}$$
+Since $\hat{\theta}_n$ is a martingale around $\theta$ (by the exact unbiasedness $\mathbb{E}[\phi_s | \mathcal{F}_{s-1}] = \theta$), we can write $\hat{\theta}_{t-1} - \theta = \frac{1}{t-1}\sum_{s=1}^{t-1}\Delta_s$ where $\Delta_s = \phi_s - \theta$ are martingale differences. Define the **per-step conditional variance**:
 
-We can compute this from the data. Defining $\delta^2 = \sigma_{\text{true}}^2 - \hat{\sigma}^2$ (= empirical average of $\hat{B} - B$, since $\hat{A}$ is unbiased):
+$$v_s := \mathbb{E}[\Delta_s^2 \mid \mathcal{F}_{s-1}] = \frac{1}{N^2}\sum_{i \notin O_{s-1}} \frac{(y_i - \hat{f}^{(s-1)}_i)^2}{q_s(i)} - \frac{1}{N^2}\left(\sum_{i \notin O_{s-1}}(y_i - \hat{f}^{(s-1)}_i)\right)^2$$
 
-| Budget (MMLU) | $\hat{\sigma}^2$ | $\sigma_{\text{true}}^2$ | $\delta^2$ | $\delta^2/\sigma_{\text{true}}^2$ | ESS |
+This is the single-step analogue of the Theorem 4 variance formula: the first term is the per-step $A$ and the second is the per-step $B$. Note that $v_s$ is a random variable ($\mathcal{F}_{s-1}$-measurable), but $\mathbb{E}[v_s]$ is a deterministic function of $s$ (averaging over all sample paths).
+
+**Computation of $\mathbb{E}[T_1]$.** By the martingale orthogonality $\mathbb{E}[\Delta_s \Delta_{s'} \mid \mathcal{F}_{\max(s,s')-1}] = 0$ for $s \ne s'$:
+
+$$\mathbb{E}[(\hat{\theta}_{t-1} - \theta)^2] = \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[v_s]$$
+
+$$\implies \mathbb{E}[T_1] = \frac{1}{n}\sum_{t=2}^{n}\frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[v_s]$$
+
+**Exchange of summation.** The index $s$ appears in all terms with $t \in \{s+1, \ldots, n\}$. Exchanging order:
+
+$$\boxed{\mathbb{E}[T_1] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s] \cdot w_s, \qquad w_s := \sum_{k=s}^{n-1}\frac{1}{k^2}}$$
+
+This is **exact** — no approximation. The weights $w_s$ are partial tails of $\sum 1/k^2$, and are strictly positive and decreasing: $w_1 = \sum_{k=1}^{n-1}1/k^2 \in [1, \pi^2/6]$ and $w_{n-1} = 1/(n-1)^2$.
+
+### 4.4 The Non-Stationarity Index $\Lambda$
+
+Define the **true per-step variance**:
+
+$$\bar{\sigma}^2 := \frac{1}{n}\sum_{s=1}^{n}\mathbb{E}[v_s] = n\,\text{Var}(\hat{\theta}_n)$$
+
+This is the quantity that $\hat{\sigma}^2 = \hat{A}_n - \hat{B}_n$ estimates. The CI half-width is $z\sqrt{\hat{\sigma}^2/n}$, so coverage depends on how well $\hat{\sigma}^2$ estimates $\bar{\sigma}^2$.
+
+**Definition.** The **non-stationarity index** is:
+
+$$\boxed{\Lambda := \frac{n}{\bar{\sigma}^2}\,\mathbb{E}[T_1] = \frac{1}{\bar{\sigma}^2}\sum_{s=1}^{n-1}\mathbb{E}[v_s] \cdot w_s}$$
+
+By construction, $\mathbb{E}[T_1] = \bar{\sigma}^2 \Lambda / n$ **exactly**, with no remainder term. $\Lambda$ is a computable, finite, positive number that depends on the variance profile $\{\mathbb{E}[v_s]\}_{s=1}^{n}$ and the budget $n$.
+
+**Normalized form.** With $g(s) := \mathbb{E}[v_s]/\bar{\sigma}^2$ (the normalized profile satisfying $\frac{1}{n}\sum g(s) = 1$):
+
+$$\Lambda = \sum_{s=1}^{n-1} g(s)\, w_s$$
+
+**Stationary benchmark.** If $g(s) \equiv 1$ (constant variance):
+
+$$\Lambda_{\text{stat}} = \sum_{s=1}^{n-1} w_s = \sum_{s=1}^{n-1}\sum_{k=s}^{n-1}\frac{1}{k^2} = \sum_{k=1}^{n-1}\frac{k}{k^2} = \sum_{k=1}^{n-1}\frac{1}{k} = H_{n-1}$$
+
+(by exchanging the double sum: each $1/k^2$ is counted $k$ times, for $s = 1, \ldots, k$). So $\Lambda_{\text{stat}} = H_{n-1} \approx \ln n + \gamma$.
+
+**Monotonicity: $\Lambda \geq H_{n-1}$ for decreasing $g$.** Since both $g$ and $w$ are decreasing in $s$, and $\sum_{s=1}^{n-1}(g(s) - 1) = n - 1 - (n-1) = 0$ (the constraint $\frac{1}{n}\sum_{s=1}^n g(s) = 1$ gives $\sum_{s=1}^{n-1} g(s) = n - g(n)$, so it's not exactly zero, but $g(n) \approx 1$ to first order)... More precisely, by Chebyshev's sum inequality: if $g$ and $w$ are both decreasing (i.e., co-monotone), then:
+
+$$\frac{1}{n-1}\sum_{s=1}^{n-1} g(s) w_s \geq \left(\frac{1}{n-1}\sum_{s=1}^{n-1} g(s)\right)\left(\frac{1}{n-1}\sum_{s=1}^{n-1} w_s\right)$$
+
+$$\implies \Lambda \geq \left(\frac{1}{n-1}\sum_{s=1}^{n-1} g(s)\right) \cdot H_{n-1}$$
+
+Since $g$ averages to 1 (approximately), $\Lambda \geq H_{n-1}$, with equality only when $g$ is constant.
+
+### 4.5 Coverage Formula with Explicit Remainder
+
+The coverage depends on the ratio $\hat{\sigma}^2 / \bar{\sigma}^2$. From the decomposition $\hat{B}_n - B_n = T_1 + T_2 - T_3$ and the unbiasedness of $\hat{A}_n$:
+
+$$\mathbb{E}[\hat{\sigma}^2] = \mathbb{E}[\hat{A}_n - \hat{B}_n] = \bar{\sigma}^2 - \mathbb{E}[T_1] + \mathbb{E}[T_3] - \mathbb{E}[T_2]$$
+
+**Define** $\Lambda_3 := n\,\mathbb{E}[T_3]/\bar{\sigma}^2 = (\theta - \bar{\psi}_1)^2/\bar{\sigma}^2$ where $\bar{\psi}_1 = \frac{1}{N}\sum_i \hat{f}^{(0)}(x_i)$.
+
+Then the **relative bias** of $\hat{\sigma}^2$ is:
+
+$$\frac{\bar{\sigma}^2 - \mathbb{E}[\hat{\sigma}^2]}{\bar{\sigma}^2} = \frac{\Lambda - \Lambda_3}{n} + \frac{\mathbb{E}[T_2]}{\bar{\sigma}^2}$$
+
+This is exact.
+
+**Coverage derivation.** Write $\text{cov} = \mathbb{P}(|Z_n| \leq z \cdot \hat{\sigma}/\sigma)$ where $Z_n = \sqrt{n}(\hat{\theta}_n - \theta)/\sigma$ and $\sigma = \sqrt{\bar{\sigma}^2}$. By the martingale CLT, $Z_n \xrightarrow{d} \mathcal{N}(0,1)$, and treating $\hat{\sigma}/\sigma \approx \sqrt{1 - (\Lambda - \Lambda_3)/n} \approx 1 - (\Lambda - \Lambda_3)/(2n)$:
+
+$$\boxed{\text{coverage} = (1 - \alpha) - z\varphi(z)\frac{\Lambda - \Lambda_3}{n} + R_{\text{CLT}} + R_{T_2} + R_{\text{var}} + R_{\text{nonlin}}}$$
+
+where $z = z_{\alpha/2}$, $\varphi(z)$ is the standard normal PDF, and the remainder terms are:
+
+- $R_{\text{CLT}}$: the **CLT correction** from $Z_n$ not being exactly $\mathcal{N}(0,1)$. By the Berry–Esseen inequality for martingales (Heyde & Brown 1970), $|R_{\text{CLT}}| \leq C_{\text{BE}} / \sqrt{n}$ where $C_{\text{BE}}$ depends on the third moment ratio $\sum \mathbb{E}[|\Delta_s|^3] / (\sum \mathbb{E}[v_s])^{3/2}$.
+
+- $R_{T_2}$: contribution from the cross term. $|R_{T_2}| = z\varphi(z) \cdot |\mathbb{E}[T_2]|/\bar{\sigma}^2$. Bounded in §4.6.2.
+
+- $R_{\text{var}}$: from the **random fluctuation** of $\hat{\sigma}^2$ around $\mathbb{E}[\hat{\sigma}^2]$ (the formula above uses $\mathbb{E}[\hat{\sigma}^2]$, but coverage depends on each realization of $\hat{\sigma}^2$). This enters at $O(\text{Var}(\hat{\sigma}^2)/\bar{\sigma}^4)$.
+
+- $R_{\text{nonlin}}$: from the nonlinearity of $\Phi$. $|R_{\text{nonlin}}| \leq C \cdot ((\Lambda - \Lambda_3)/n)^2$.
+
+For the numerical values: $z = 1.96$, $\varphi(z) \approx 0.0584$, so $z\varphi(z) \approx 0.114$.
+
+**Remark on $\Lambda_3$.** We do NOT assume $\Lambda_3 \approx 0$. In the verification (§4.7), $\Lambda_3$ is computed empirically from the initial factor model predictions. For FAQ, $\Lambda_3$ is small but not negligible; for uniform sampling, $\Lambda_3$ can be substantial.
+
+### 4.6 The Two Competing Effects: Why Coverage Is Non-Monotone
+
+The empirical coverage (§4.1) first improves from 2.5% to ~10% budget (matching WR behavior), then degrades from ~10% to 25%. This U-shape arises from **two competing corrections** in the coverage formula:
+
+$$\underbrace{(1 - \alpha)}_{\text{target}} - \underbrace{z\varphi(z)\frac{\Lambda - \Lambda_3}{n}}_{\text{bias effect (B)}} + \underbrace{R_{\text{CLT}}}_{\text{CLT effect (A)}} + \text{smaller terms}$$
+
+**Effect A: CLT improvement** ($R_{\text{CLT}} \sim -C/\sqrt{n}$, decreasing in magnitude). As $n$ grows, the martingale CLT approximation improves. This effect is shared with WR FAQ, where the CI half-width scales as $1/\sqrt{n}$ and the normal approximation error is $O(1/\sqrt{n})$. It monotonically improves coverage.
+
+**Effect B: $\hat{B}_n$ bias** ($z\varphi(z)(\Lambda - \Lambda_3)/n$). This is the **relative bias** of the variance estimator, unique to WOR. Whether it increases or decreases with budget depends on how $(\Lambda - \Lambda_3)/n$ varies with $n$.
+
+**At low budgets** ($n$ small, budget $\lesssim 10\%$): Effect A dominates. Adding more samples improves both the CLT approximation and the variance estimate. Coverage improves, exactly as in WR. The WOR and WR coverage curves are nearly indistinguishable.
+
+**At high budgets** ($n$ large, budget $\gtrsim 10\%$): Effect A has mostly converged (WR coverage is ~0.948). But Effect B is now large enough to dominate. Coverage degrades.
+
+### 4.6.1 Why $(\Lambda - \Lambda_3)/n$ Increases with Budget
+
+This is the central question. Asymptotically, $(\Lambda - \Lambda_3)/n \to 0$ (guaranteed by Theorem 4: coverage is asymptotically valid). But at **finite budgets**, this ratio can increase. Here is why.
+
+**The key: $\bar{\sigma}^2$ shrinks faster than $\mathbb{E}[T_1]$.** Recall:
+
+$$\frac{\Lambda}{n} = \frac{\mathbb{E}[T_1]}{\bar{\sigma}^2} = \frac{\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s}{n \cdot \bar{\sigma}^2} = \frac{\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s}{\sum_{s=1}^{n}\mathbb{E}[v_s]}$$
+
+This is a ratio of two sums over the same variance profile $\{\mathbb{E}[v_s]\}$. The numerator uses weights $w_s$ that decay roughly as $1/s$; the denominator weights all terms equally.
+
+As budget $n$ increases, the WOR sampling observes more items. The factor model improves dramatically at later rounds, making $\mathbb{E}[v_s]$ very small for large $s$. Concretely:
+
+- **Denominator** $\sum_{s=1}^n \mathbb{E}[v_s]$: extends the sum with small new terms ($v_s \approx 0$ for large $s$). The average $\bar{\sigma}^2 = \frac{1}{n}\sum \mathbb{E}[v_s]$ decreases because the late-round terms dilute the early-round values. This is the **ESS growth**: the estimator becomes more efficient.
+
+- **Numerator** $\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s$: also extends, but the new terms have both small $v_s$ AND small $w_s$, so they contribute negligibly. The numerator is **dominated by the first few rounds** where both $v_s$ and $w_s$ are large. These early-round values do not change much with budget.
+
+So: the numerator stays roughly constant while the denominator grows → $\Lambda/n$ increases.
+
+**Why this is not just $\log(n)/n$.** For a variance profile $v_s$ that is **independent of total budget $n$** (i.e., $\mathbb{E}[v_s]$ at step $s$ is the same whether the total budget is 1000 or 3000), one can verify that $\Lambda/n$ is eventually decreasing (it equals a convergent sum divided by a divergent sum). But in WOR FAQ, the profile **depends on $n$** through two mechanisms:
+
+1. **Scheduling**: the blending parameters use $t/({\rho \cdot n_B})$ and $t/({\gamma \cdot n_B})$, so the same absolute step $s$ gets a different schedule position for different total budgets. Larger $n_B$ stretches the exploration phase, which can increase $\mathbb{E}[v_s]$ at early rounds.
+
+2. **Hyperparameter tuning**: optimal $({\beta_0, \rho, \gamma, \tau})$ are selected per budget. Higher-budget settings may use more aggressive scoring (higher $\beta_0$), further increasing early-round variance.
+
+These effects cause $\sum \mathbb{E}[v_s]\,w_s$ to *increase* with budget (not stay constant), while $\bar{\sigma}^2$ keeps decreasing. The ratio $\Lambda/n$ therefore increases over the practical budget range.
+
+**Quantitative check from the data.** Define $\delta^2 := \bar{\sigma}^2 - \mathbb{E}[\hat{\sigma}^2] \approx \mathbb{E}[T_1]$ (since $T_3$ and $T_2$ are smaller). Then $\Lambda/n \approx \delta^2/\bar{\sigma}^2$:
+
+| Budget (MMLU) | $\bar{\sigma}^2$ | $\delta^2$ | $\delta^2/\bar{\sigma}^2 = \Lambda/n$ | $n$ | $\Lambda$ |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| 2.5% | 0.0858 | 0.0926 | 0.0068 | 7.3% | 3.67 |
-| 10% | 0.0529 | 0.0559 | 0.0031 | 5.5% | 5.48 |
-| 17.5% | 0.0413 | 0.0456 | 0.0043 | 9.4% | 6.44 |
-| 25% | 0.0331 | 0.0423 | **0.0093** | **21.9%** | 7.31 |
+| 2.5% | 0.0926 | 0.0068 | 0.073 | ~300 | ~22 |
+| 10% | 0.0559 | 0.0031 | 0.055 | ~1200 | ~66 |
+| 25% | 0.0423 | 0.0093 | 0.220 | ~3000 | ~660 |
 
-The relative bias $\delta^2/\sigma_{\text{true}}^2$ has a **U-shape**: it decreases from 7.3% to 5.5% (budget 2.5%→10%), then increases sharply to 21.9% (budget 25%).
+The ratio $\Lambda/n$ first decreases (0.073 → 0.055, CLT effect dominating) then increases sharply (0.055 → 0.220). For comparison, the stationary benchmark is $H_{n-1}/n \approx \ln(n)/n$: $\ln(300)/300 = 0.019$, $\ln(1200)/1200 = 0.006$, $\ln(3000)/3000 = 0.003$. The observed $\Lambda/n$ values are 4–70× larger than the stationary prediction, confirming massive non-stationarity. And while $\ln(n)/n$ is monotonically decreasing, the observed $\Lambda/n$ increases by 4× from 10% to 25% budget.
 
-**Two simultaneous effects produce this:**
+**Asymptotic vs. finite-sample.** The theorem guarantees $\Lambda(n)/n \to 0$ (since the bias is $o(1)$ and $\bar{\sigma}^2$ is bounded away from zero for any finite population). The finite-sample behavior over budget 2.5–25% does not contradict this: the degradation occurs in a specific range and must eventually reverse. The relevant question for practice is whether this reversal occurs within the useful budget range.
 
-1. **$\sigma_{\text{true}}^2$ shrinks monotonically** (the estimator becomes more efficient with budget). $\sigma_{\text{true}}^2$ falls from 0.093 to 0.042, a 2.2× decrease.
+### 4.6.2 Parametric Variance Profiles (Illustrative)
 
-2. **$\delta^2$ first decreases then increases**. It falls from 0.0068 to 0.0031 (budget 2.5%→10%) as more data improves the variance estimate, then rises back to 0.0093 at 25% budget. The absolute bias *increases* at high budgets.
+To build intuition, we compute $\Lambda$ for two simple profiles. These are useful for understanding the $\Lambda$ growth mechanism, even though the true variance profile is more complex (and budget-dependent).
 
-The relative bias is their ratio, and since the denominator shrinks faster than the numerator, the ratio grows.
+**Exponential decay: $v_s = v_1 \cdot e^{-\lambda(s-1)/n}$.** Represents a model that improves at rate $\lambda$. Then:
 
-### 4.4 Why the Absolute Bias $\delta^2$ Increases at High Budgets
+$$\bar{\sigma}^2 \approx v_1 \cdot \frac{1 - e^{-\lambda}}{\lambda}, \qquad \Lambda = \frac{\lambda}{1 - e^{-\lambda}} \sum_{s=1}^{n-1}\frac{e^{-\lambda(s-1)/n}}{s} \cdot w_s$$
 
-This is the most surprising empirical finding. The absolute bias $\delta^2 = \sigma_{\text{true}}^2 - \hat{\sigma}^2$ does not monotonically decrease. From the data:
+Note: $\lambda$ itself scales with $n$ in the WOR setting (longer budgets mean more model improvement), so $\Lambda$ is not simply $\log(n)$ growth. If $\lambda \propto n$ (learning rate proportional to budget), $\Lambda$ can grow much faster.
 
-| Budget (MMLU) | $\delta^2$ | $\delta^2 \times n$ |
-|:---:|:---:|:---:|
-| 2.5% | 0.00680 | 2.05 |
-| 5% | 0.00557 | 3.35 |
-| 10% | 0.00309 | 3.71 |
-| 15% | 0.00361 | 6.51 |
-| 20% | 0.00574 | 13.81 |
-| 25% | 0.00925 | 27.83 |
+**Power-law decay: $v_s = v_1 \cdot s^{-\alpha}$** for $0 < \alpha < 1$. Then $\Lambda/n \sim (1-\alpha) n^{\alpha-1}/\alpha$, which decreases as $n^{\alpha - 1}$. So for a **fixed** power-law profile, coverage always improves. The empirical degradation must therefore come from the profile becoming *steeper* (larger effective $\alpha$) as budget increases.
 
-$\delta^2 \cdot n$ grows dramatically (2.0 → 27.8), showing that the bias per observation is *increasing*, not decreasing.
+### 4.6.3 Treatment of $T_2$ and $T_3$
 
-The explanation involves three interacting effects:
+**$T_3$ is deterministic.** $T_3 = \frac{1}{n}(\theta - \bar{\psi}_1)^2$ where $\bar{\psi}_1 = \frac{1}{N}\sum_i \hat{f}^{(0)}(x_i)$. This is fixed given the prior model $\hat{f}^{(0)}$. In normalized units:
 
-**(i) Model non-stationarity.** The factor model $\hat{f}^{(t)}$ is retrained via Bayesian updates at each round. At early rounds, the model is poor and predictions have large residuals. At later rounds, predictions improve. The running average $\hat{\theta}_{t-1}$ carries the "memory" of early, noisy $\phi_t$ values, while $\psi_t$ (the imputed mean) reflects the *current* model. This mismatch inflates $\hat{B}_n$: the squared difference $(N\hat{\theta}_{t-1} - N\psi_t)^2$ includes a component from historical estimation noise that does not appear in $B_n = (1/(nN^2))\sum(\sum_{i \notin O} e_i)^2$.
+$$\Lambda_3 = \frac{n \cdot T_3}{\bar{\sigma}^2} = \frac{(\theta - \bar{\psi}_1)^2}{\bar{\sigma}^2}$$
 
-**(ii) The WOR "self-improvement" amplification.** For WOR, sampling removes items from the pool. Items with large $|y_i - \hat{f}_i|$ are preferentially sampled (PAI scoring), leaving behind items with progressively smaller residuals. This causes:
-- $A_n$ to decrease (fewer and smaller residuals in the unobserved pool)
-- $B_n$ to decrease even faster (the mean residual over remaining items shrinks rapidly)
-- $\sigma^2 = A_n - B_n$ to shrink, becoming a smaller and smaller difference of two quantities
+Note that $\Lambda_3$ depends on $n$ only through $\bar{\sigma}^2(n)$ in the denominator (since the numerator $(\theta - \bar{\psi}_1)^2$ is fixed). As $\bar{\sigma}^2$ decreases with budget, $\Lambda_3$ *increases*, partially offsetting the growth of $\Lambda$. However, $\Lambda_3$ grows much more slowly than $\Lambda$ because $(\theta - \bar{\psi}_1)^2$ is a fixed constant while $\mathbb{E}[T_1]$ involves a sum that grows with $n$.
 
-**(iii) The cancellation amplification.** When $\sigma^2 = A - B$ is a small difference of two moderately-sized quantities, any error in estimating $B$ gets amplified. The estimated $B/A$ ratio grows from ~3% at 2.5% budget to ~49% at 25% budget (computed as $(\hat{\sigma}^2_{\text{WR}} - \hat{\sigma}^2_{\text{WOR}})/\hat{\sigma}^2_{\text{WOR}}$ under the approximation $\hat{A}_{\text{WOR}} \approx \hat{A}_{\text{WR}}$). When $B/A \approx 0.49$, even a 10% relative error in $\hat{B}$ produces a $\sim 10\%$ relative error in $\hat{\sigma}^2$.
+**$T_2$ cross term.** $T_2 = \frac{2}{n}\sum_{t=2}^{n}(\theta - \psi_t)(\hat{\theta}_{t-1} - \theta)$.
 
-### 4.5 Why WR FAQ Does Not Suffer
+Both factors are $\mathcal{F}_{t-1}$-measurable. The key structure is:
+- $\hat{\theta}_{t-1} - \theta = \frac{1}{t-1}\sum_{s=1}^{t-1}\Delta_s$: cumulative martingale noise.
+- $\theta - \psi_t = \frac{1}{N}\sum_{i \notin O_{t-1}}(y_i - \hat{f}^{(t-1)}_i)$: total prediction error on unobserved items.
 
-For WR FAQ, the variance formula is simply $\hat{\sigma}^2 = \hat{A}$ (no $B$ correction), because with-replacement samples are independent and no cross-round anti-correlation correction is needed. This eliminates the entire cancellation problem.
+Conditioning on $\mathcal{F}_{t-2}$ (everything up to step $t-2$):
 
-Additionally, WR FAQ's ESS **saturates and then decreases** at high budgets (5.1×→4.9× for MMLU-Pro), because re-sampling previously-seen items provides diminishing returns. This means $\sigma^2_{\text{WR}}$ stops shrinking, so the baseline CLT error (component A) continues to decrease, giving **improving** coverage with budget.
+$$\mathbb{E}[(\hat{\theta}_{t-1} - \theta)(\theta - \psi_t) \mid \mathcal{F}_{t-2}] = \mathbb{E}\!\left[\frac{1}{t-1}\left(\sum_{s=1}^{t-2}\Delta_s + \Delta_{t-1}\right)(\theta - \psi_t) \;\middle|\; \mathcal{F}_{t-2}\right]$$
 
-For WOR FAQ, ESS keeps growing (3.67→7.31×) because every sample is new information. This makes $\sigma^2$ keep shrinking, amplifying the $\hat{B}$ bias.
+The term $\sum_{s<t-1}\Delta_s$ is $\mathcal{F}_{t-2}$-measurable, but $(\theta - \psi_t)$ depends on $I_{t-1}$ (through $O_{t-1}$ and $\hat{f}^{(t-1)}$), so they are correlated. This correlation comes from the fact that observing item $I_{t-1}$ simultaneously:
+- contributes $\Delta_{t-1}$ to the running average
+- changes $\psi_t$ by replacing one prediction with the true label and updating the model
 
-### 4.6 The U-Shape Explained
+The magnitude of this correlation per step is $O(1/N)$ (since each step changes $\psi$ by one item out of $N$). Summing over $t$:
 
-The coverage deficit $d(b) = 0.95 - \text{cov}(b) \approx 0.229\varepsilon(b)$ has a minimum (best coverage) at budget $b^* \approx 8\text{--}10\%$:
+$$|\mathbb{E}[T_2]| \leq \frac{C}{N} \cdot \frac{1}{n}\sum_{t=2}^n \sqrt{\text{Var}(\hat{\theta}_{t-1})} = O\!\left(\frac{\sqrt{\bar{\sigma}^2}}{N}\right)$$
 
-**Below $b^*$**: The CLT improvement (component A, decreasing as $1/\sqrt{n}$) dominates. More data → better normal approximation → better coverage.
+For $N \gg \sqrt{n}$ (always true in our setting: $N \sim 12000$, $n \leq 3000$), this is much smaller than $\mathbb{E}[T_1] \sim \bar{\sigma}^2 \Lambda/n$.
 
-**Above $b^*$**: The $\hat{B}$ relative bias amplification (component C) dominates. More data → higher ESS → smaller $\sigma^2$ → larger relative bias → worse coverage.
+**Summary.** The exact coverage identity is:
 
-Fitting $\varepsilon$ as a quadratic in ESS:
+$$\text{coverage} = (1 - \alpha) - z\varphi(z)\frac{\Lambda - \Lambda_3}{n} + R$$
 
-| Dataset | Model | $R^2$ | ESS at minimum $\varepsilon$ | Budget at minimum |
-|---------|-------|:-----:|:---:|:---:|
-| MMLU-Pro | $\varepsilon = 0.383 - 0.146\cdot\text{ESS} + 0.0148\cdot\text{ESS}^2$ | 0.930 | 4.93 | ~7% |
-| BBH suite | $\varepsilon = 0.199 - 0.091\cdot\text{ESS} + 0.0108\cdot\text{ESS}^2$ | 0.954 | 4.17 | ~7% |
+where $\Lambda$ and $\Lambda_3$ are computable from the variance profile $\{v_s\}$ and the initial model, and the remainder satisfies:
+
+$$|R| \leq \frac{C_1}{\sqrt{n}} + C_2\left(\frac{\Lambda}{n}\right)^2 + \frac{C_3\sqrt{\bar{\sigma}^2}}{N}$$
+
+The first term is the CLT correction (shared with WR), the second is the nonlinearity correction, and the third bounds the $T_2$ contribution. The coverage degradation at high budgets is driven entirely by the growth of $\Lambda/n$, which overcomes the $C_1/\sqrt{n}$ improvement.
 
 ### 4.7 Quantitative Verification
 
-The formula $\text{coverage} \approx 0.95 - 0.229\varepsilon$ matches the data:
+**From §4.1 data.** Defining $\varepsilon = 1 - \Phi^{-1}((1 + \text{cov})/2)/z$ (the fractional underestimation of $\sigma$) and using the relationship $\text{coverage} \approx 0.95 - 2z\varphi(z)\varepsilon$:
 
 | | $\varepsilon$ | Predicted coverage | Actual coverage |
 |---|:---:|:---:|:---:|
@@ -175,21 +289,28 @@ The formula $\text{coverage} \approx 0.95 - 0.229\varepsilon$ matches the data:
 | MMLU-Pro, 10% | 0.028 | 0.944 | 0.943 |
 | BBH, 10% | 0.014 | 0.947 | 0.947 |
 
-The small discrepancy at MMLU-Pro 25% (0.923 vs 0.917) is from the nonlinearity of $\Phi$ at large $\varepsilon$.
+The small discrepancy at MMLU-Pro 25% (0.923 vs 0.917) is from the nonlinearity correction $R_{\text{nonlin}}$ (§4.5).
+
+**From $\Lambda$.** The script `verify_lambda.py` computes $\Lambda$ from the per-step variance profile $v_s$ (logged by `wor_trial.py` with `log_profile=True`) and checks the prediction $\text{coverage} \approx 0.95 - 0.114(\Lambda - \Lambda_3)/n$ against the actual coverage.
 
 ---
 
 ## 5. Summary
 
-The WOR FAQ coverage degradation has a **single root cause**: the $\hat{B}_n$ variance correction is positively biased ($\mathbb{E}[\hat{B}_n] > B_n$), causing $\hat{\sigma}^2 = \hat{A} - \hat{B}$ to underestimate $\sigma^2 = A - B$.
+The WOR FAQ coverage degradation has a **single root cause**: the $\hat{B}_n$ variance correction is positively biased ($\mathbb{E}[\hat{B}_n] > B_n$), causing $\hat{\sigma}^2 = \hat{A} - \hat{B}$ to underestimate $\bar{\sigma}^2 = A - B$.
 
-This bias is asymptotically negligible ($\hat{B}_n - B_n = T_1 + T_2 - T_3 \to 0$), but at finite sample sizes its **relative** impact grows with budget because:
+The exact formula (§4.3–4.5):
 
-1. **$\sigma^2$ shrinks** as ESS grows (WOR keeps improving, unlike WR which saturates).
-2. **$\delta^2$ (absolute bias) also increases** at high budgets due to model non-stationarity and the increasing importance of the $B$ correction (higher $B/A$ ratio means more cancellation).
-3. The two effects multiply: the relative bias $\delta^2/\sigma^2$ grows from ~5% to ~22% across the budget range.
+$$\text{coverage} = 0.95 - 0.114 \cdot \frac{\Lambda - \Lambda_3}{n} + R, \qquad |R| \leq \frac{C_1}{\sqrt{n}} + C_2\left(\frac{\Lambda}{n}\right)^2 + \frac{C_3\sqrt{\bar{\sigma}^2}}{N}$$
 
-The resulting coverage deficit is well-described by $\varepsilon \approx c_0 + c_1 \cdot \text{ESS} + c_2 \cdot \text{ESS}^2$ with $R^2 > 0.93$ for both datasets.
+where $\Lambda = \frac{1}{\bar{\sigma}^2}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s$ is the non-stationarity index and $\Lambda_3 = (\theta - \bar{\psi}_1)^2/\bar{\sigma}^2$ is the initial model correction.
+
+**Two competing effects produce the U-shaped coverage curve** (§4.6):
+
+1. **CLT improvement** ($C_1/\sqrt{n}$, decreasing): shared with WR, dominates at low budgets.
+2. **$\hat{B}_n$ relative bias** ($0.114 \cdot (\Lambda - \Lambda_3)/n$, empirically increasing over 10–25%): unique to WOR.
+
+The ratio $\Lambda/n$ increases at finite budgets because $\bar{\sigma}^2$ (denominator) shrinks faster than $\sum \mathbb{E}[v_s]\,w_s$ (numerator), amplified by budget-dependent scheduling and hyperparameter tuning. Asymptotically, $\Lambda/n \to 0$ (Theorem 4 is valid), but the practical budget range lies in the non-monotone regime.
 
 ---
 
