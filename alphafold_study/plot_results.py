@@ -1,11 +1,12 @@
 """
 Plot AlphaFold study results.
 
-2 columns (non-phosphorylated, phosphorylated).
-Top row: ESS (= ESS_mult × budget × N_group) with multiplier annotations.
-Bottom row: Coverage with 95% reference line.
+Produces 2 PDFs:
+  1. ESS relative to WOR-uniform (value of active scoring + WOR)
+  2. ESS relative to Classical (total value vs naive, like original FAQ paper)
 
-Output: alphafold_study/figures/alphafold_ess+coverage.pdf
+Each: 2 columns (non-phosphorylated, phosphorylated),
+top row = ESS with multiplier annotations, bottom row = coverage.
 """
 import numpy as np
 import pandas as pd
@@ -59,73 +60,125 @@ groups_config = [
     ("phosphorylated",     "Phosphorylated",     1),
 ]
 
-# --- Legend ---
-legend_handles = [
-    Line2D([], [], marker=m, color=c, label=l, linewidth=LINEWIDTH, markersize=MARKERSIZE)
-    for _, m, c, l, _ in method_config
-] + [
-    Line2D([], [], color="black", linestyle="--", label="95% Coverage"),
+def make_figure(ess_col, ess_serr_col, methods, out_path, legend_ncol=3, budget_subset=None):
+    """
+    Generate ESS + coverage figure.
+
+    ess_col/ess_serr_col: which ESS multiplier columns to use.
+    methods: list of (method_name, marker, color, label, annotate) tuples.
+    budget_subset: if given, only plot these prop_budget values.
+    """
+    handles = [
+        Line2D([], [], marker=m, color=c, label=l, linewidth=LINEWIDTH, markersize=MARKERSIZE)
+        for _, m, c, l, _ in methods
+    ] + [
+        Line2D([], [], color="black", linestyle="--", label="95% Coverage"),
+    ]
+
+    fig = plt.figure(dpi=400, figsize=(6.5, 2.7))
+    gs = gridspec.GridSpec(3, 2)
+
+    for group_name, title, col in groups_config:
+        nq = N_GROUP[group_name]
+
+        ax_ess = fig.add_subplot(gs[:2, col])
+
+        for method, marker, color, label, annotate in methods:
+            q = summary.query(f"group == '{group_name}' and method == '{method}'")
+            q = q.sort_values("prop_budget")
+            if budget_subset is not None:
+                q = q[q["prop_budget"].round(6).isin(np.round(budget_subset, 6))]
+
+            xs = q["prop_budget"].values * nq
+            ess_vals = q[ess_col].values
+            ess_serr = q[ess_serr_col].values
+
+            # Filter out inf/nan for plotting
+            valid = np.isfinite(ess_vals)
+            if not valid.all():
+                xs_v = xs[valid]
+                budgets_v = q["prop_budget"].values[valid]
+                ess_vals = ess_vals[valid]
+                ess_serr = ess_serr[valid]
+            else:
+                xs_v = xs
+                budgets_v = q["prop_budget"].values
+
+            ys = ess_vals * budgets_v * nq
+            yerrs = ess_serr * budgets_v * nq
+
+            ax_ess.errorbar(xs_v, ys, yerr=yerrs,
+                            marker=marker, capsize=MARKERSIZE, capthick=1.0, color=color)
+
+            if annotate:
+                for x, mult, y in zip(xs_v, ess_vals, ys):
+                    ax_ess.annotate(f"{mult:.2f}", xy=(x, y),
+                                    textcoords="offset points",
+                                    xytext=(0, SMALL_SIZE // 2 - 1),
+                                    ha="center", fontsize=SMALL_SIZE - 1)
+
+        ax_ess.grid()
+        ax_ess.set_title(title)
+        if col == 0:
+            ax_ess.set_ylabel("Effective Sample Size")
+        ax_ess.tick_params(axis="x", labelbottom=False)
+        ylo, yhi = ax_ess.get_ylim()
+        ax_ess.set_ylim(ylo, yhi * 1.08)
+
+        # --- Coverage subplot ---
+        ax_cov = fig.add_subplot(gs[2:, col], sharex=ax_ess)
+
+        for method, marker, color, label, _ in methods:
+            q = summary.query(f"group == '{group_name}' and method == '{method}'")
+            q = q.sort_values("prop_budget")
+            if budget_subset is not None:
+                q = q[q["prop_budget"].round(6).isin(np.round(budget_subset, 6))]
+            xs = q["prop_budget"].values * nq
+            ax_cov.errorbar(xs, q["coverage"].values, yerr=q["coverage_serr"].values,
+                            marker=marker, capsize=MARKERSIZE, capthick=1.0, color=color)
+
+        ax_cov.grid()
+        ax_cov.set_ylim(bottom=0.85, top=1.0)
+        ax_cov.axhline(y=0.95, color="black", linestyle="--")
+        ax_cov.set_xlabel(f"Budget (Out of {nq:,} Items)")
+        if col == 0:
+            ax_cov.set_ylabel("Coverage")
+
+    fig.legend(handles=handles, ncol=legend_ncol, loc="lower center",
+               bbox_to_anchor=(0.5, -0.14))
+    plt.tight_layout()
+
+    os.makedirs("alphafold_study/figures", exist_ok=True)
+    plt.savefig(out_path, facecolor="white", bbox_inches="tight")
+    print(f"Saved {out_path}")
+    plt.close()
+
+
+# Plot 1: All 5 methods, ESS relative to WOR-uniform
+make_figure("ess_multiplier", "ess_multiplier_serr",
+            method_config,
+            "alphafold_study/figures/alphafold_ess+coverage_vs_wor_uniform.pdf")
+
+# Plot 2: All 5 methods, ESS relative to Classical
+make_figure("ess_multiplier_vs_classical", "ess_multiplier_vs_classical_serr",
+            method_config,
+            "alphafold_study/figures/alphafold_ess+coverage_vs_classical.pdf")
+
+# Plot 3: WOR Active vs Bernoulli Active vs Classical, ESS relative to Classical
+# Use same colors/markers as original paper: FAQ=blue circle, Best Baseline=orange x, Uniform=green triangle
+method_config_main = [
+    ("wor-active",        "o", colors[0], "WOR Active (Ours)",        True),
+    ("bernoulli-active",  "x", colors[1], "Active Inference", True),
+    ("classical",         "^", colors[2], "Classical",                 False),
 ]
+make_figure("ess_multiplier_vs_classical", "ess_multiplier_vs_classical_serr",
+            method_config_main,
+            "alphafold_study/figures/alphafold_main.pdf",
+            legend_ncol=4)
 
-# --- Figure ---
-fig = plt.figure(dpi=400, figsize=(6.5, 2.7))
-gs = gridspec.GridSpec(3, 2)
-
-for group_name, title, col in groups_config:
-    nq = N_GROUP[group_name]
-
-    ax_ess = fig.add_subplot(gs[:2, col])
-
-    for method, marker, color, label, annotate in method_config:
-        q = summary.query(f"group == '{group_name}' and method == '{method}'")
-        q = q.sort_values("prop_budget")
-
-        xs = q["prop_budget"].values * nq
-        ys = q["ess_multiplier"].values * q["prop_budget"].values * nq
-        yerrs = q["ess_multiplier_serr"].values * q["prop_budget"].values * nq
-
-        ax_ess.errorbar(xs, ys, yerr=yerrs,
-                        marker=marker, capsize=MARKERSIZE, capthick=1.0, color=color)
-
-        if annotate:
-            for x, mult, y in zip(xs, q["ess_multiplier"].values, ys):
-                ax_ess.annotate(f"{mult:.2f}", xy=(x, y),
-                                textcoords="offset points",
-                                xytext=(0, SMALL_SIZE // 2 - 1),
-                                ha="center", fontsize=SMALL_SIZE - 1)
-
-    ax_ess.grid()
-    ax_ess.set_title(title)
-    if col == 0:
-        ax_ess.set_ylabel("Effective Sample Size")
-    ax_ess.tick_params(axis="x", labelbottom=False)
-    ylo, yhi = ax_ess.get_ylim()
-    ax_ess.set_ylim(ylo, yhi * 1.08)
-
-    # --- Coverage subplot ---
-    ax_cov = fig.add_subplot(gs[2:, col], sharex=ax_ess)
-
-    for method, marker, color, label, _ in method_config:
-        q = summary.query(f"group == '{group_name}' and method == '{method}'")
-        q = q.sort_values("prop_budget")
-
-        xs = q["prop_budget"].values * nq
-        ax_cov.errorbar(xs, q["coverage"].values, yerr=q["coverage_serr"].values,
-                        marker=marker, capsize=MARKERSIZE, capthick=1.0, color=color)
-
-    ax_cov.grid()
-    ax_cov.set_ylim(bottom=0.85, top=1.0)
-    ax_cov.axhline(y=0.95, color="black", linestyle="--")
-    ax_cov.set_xlabel(f"Budget (Out of {nq:,} Items)")
-    if col == 0:
-        ax_cov.set_ylabel("Coverage")
-
-fig.legend(handles=legend_handles, ncol=3, loc="lower center",
-           bbox_to_anchor=(0.5, -0.14))
-plt.tight_layout()
-
-os.makedirs("alphafold_study/figures", exist_ok=True)
-out = "alphafold_study/figures/alphafold_ess+coverage.pdf"
-plt.savefig(out, facecolor="white", bbox_inches="tight")
-print(f"Saved {out}")
-plt.show()
+# Plot 4: Same as Plot 3, starting at 0.04, evenly spaced (step=0.02)
+budgets_10 = np.linspace(0.01, 0.2, 20)[3::2]  # 0.04, 0.06, ..., 0.20
+make_figure("ess_multiplier_vs_classical", "ess_multiplier_vs_classical_serr",
+            method_config_main,
+            "alphafold_study/figures/alphafold_main_sparse.pdf",
+            legend_ncol=4, budget_subset=budgets_10)
