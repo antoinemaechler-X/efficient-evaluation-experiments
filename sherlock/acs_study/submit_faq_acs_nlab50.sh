@@ -12,7 +12,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms/acs_study
+cd /home/groups/candes/maechler/efficient-evaluation-experiments/acs_study
 
 mkdir -p ../logs/acs
 

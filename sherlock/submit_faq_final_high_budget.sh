@@ -13,7 +13,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms
+cd /home/groups/candes/maechler/efficient-evaluation-experiments
 
 echo "Task $SLURM_ARRAY_TASK_ID: seed_chunk=$SLURM_ARRAY_TASK_ID"
 python faq_final_high_budget_all_ms.py $SLURM_ARRAY_TASK_ID

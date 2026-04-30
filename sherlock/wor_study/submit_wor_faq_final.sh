@@ -13,7 +13,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms
+cd /home/groups/candes/maechler/efficient-evaluation-experiments
 
 # 3 jobs: seed chunks 0-2
 echo "Task $SLURM_ARRAY_TASK_ID: seed_chunk=$SLURM_ARRAY_TASK_ID"

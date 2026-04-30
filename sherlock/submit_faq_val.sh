@@ -13,7 +13,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms
+cd /home/groups/candes/maechler/efficient-evaluation-experiments
 
 # 20 jobs: 2 datasets x 5 gammas x 2 missingness sets
 dataset=$((SLURM_ARRAY_TASK_ID / 10))

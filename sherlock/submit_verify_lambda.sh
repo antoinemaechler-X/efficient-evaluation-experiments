@@ -13,7 +13,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms
+cd /home/groups/candes/maechler/efficient-evaluation-experiments
 
 # 4 jobs: 2 datasets x 2 budgets (0.1, 0.25)
 DATASETS=("mmlu-pro" "bbh+gpqa+ifeval+math+musr")
