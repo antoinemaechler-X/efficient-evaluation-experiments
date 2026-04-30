@@ -13,7 +13,7 @@
 
 source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
-cd ~/efficiently-evaluating-llms
+cd /home/groups/candes/maechler/efficient-evaluation-experiments
 
 # 6 jobs: 2 scripts × 3 seed chunks
 # 0-2: run_wor.py with seed_chunk 0,1,2
