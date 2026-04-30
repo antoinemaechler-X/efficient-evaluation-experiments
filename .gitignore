@@ -14,7 +14,7 @@ __pycache__/
 
 # Experiment outputs (large, cluster-specific)
 logs/final/backup_old_variance/
-logs/val/
+#logs/val/
 logs/coverage_analysis/
 factor_models/
 
