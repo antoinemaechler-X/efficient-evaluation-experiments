@@ -34,20 +34,25 @@ print(f"Groups: {sorted(all_df['group'].unique())}")
 print(f"Budgets: {sorted(all_df['prop_budget'].unique())}")
 
 # ====================================================================
-# PART 2: Compute ESS multiplier relative to WOR-uniform
+# PART 2: Compute ESS multipliers relative to TWO baselines
 # ====================================================================
 merge_cols = ["group", "prop_budget", "seed"]
 
-# Get WOR-uniform widths as reference
+# Baseline 1: WOR-uniform (shows value of active scoring)
 wor_unif = all_df.query("method == 'wor-uniform'")[merge_cols + ["width"]].copy()
-wor_unif = wor_unif.rename(columns={"width": "width_ref"})
+wor_unif = wor_unif.rename(columns={"width": "width_ref_wor"})
 
-# Merge reference width into all rows
+# Baseline 2: Classical (shows total value vs naive, like original FAQ paper)
+classical = all_df.query("method == 'classical'")[merge_cols + ["width"]].copy()
+classical = classical.rename(columns={"width": "width_ref_classical"})
+
 merged = pd.merge(all_df, wor_unif, on=merge_cols, how="left")
-assert merged["width_ref"].notna().all(), "Missing WOR-uniform reference for some seeds"
+merged = pd.merge(merged, classical, on=merge_cols, how="left")
+assert merged["width_ref_wor"].notna().all(), "Missing WOR-uniform reference for some seeds"
+assert merged["width_ref_classical"].notna().all(), "Missing Classical reference for some seeds"
 
-merged["ess_multiplier"] = (merged["width_ref"] / merged["width"]) ** 2
-all_df["ess_multiplier"] = merged["ess_multiplier"].values
+all_df["ess_multiplier"] = (merged["width_ref_wor"] / merged["width"]) ** 2
+all_df["ess_multiplier_vs_classical"] = (merged["width_ref_classical"] / merged["width"]) ** 2
 
 # ====================================================================
 # PART 3: Build summary
@@ -56,6 +61,8 @@ def build_summary(df, group_cols):
     summary = df.groupby(group_cols, dropna=False).agg(
         ess_multiplier=("ess_multiplier", "mean"),
         ess_multiplier_serr=("ess_multiplier", lambda x: x.std() / np.sqrt(len(x))),
+        ess_multiplier_vs_classical=("ess_multiplier_vs_classical", "mean"),
+        ess_multiplier_vs_classical_serr=("ess_multiplier_vs_classical", lambda x: x.std() / np.sqrt(len(x))),
         coverage=("coverage", "mean"),
         coverage_serr=("coverage", lambda x: x.std() / np.sqrt(len(x))),
         mean_width=("width", "mean"),
