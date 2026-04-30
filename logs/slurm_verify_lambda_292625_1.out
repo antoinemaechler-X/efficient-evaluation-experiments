@@ -1,0 +1,53 @@
+Task 1: dataset=mmlu-pro budget=0.25
+Dataset: mmlu-pro, budget: 0.25 (n=3008, N=12032)
+Hyperparameters: beta0=1.0, rho=0.0, gamma=0.0, tau=0.05
+Running 100 seeds with log_profile=True...
+  seed 10/100 done
+  seed 20/100 done
+  seed 30/100 done
+  seed 40/100 done
+  seed 50/100 done
+  seed 60/100 done
+  seed 70/100 done
+  seed 80/100 done
+  seed 90/100 done
+  seed 100/100 done
+
+============================================================
+RESULTS
+============================================================
+n (budget)            = 3008
+N (questions)         = 12032
+θ (true mean)         = 0.3386
+ψ̄₁ (initial model)    = 0.2906
+σ̄² (avg cond var)     = 0.040879
+
+Λ (exact weights)     = 37.263
+Λ (from mean profile) = 37.263
+Λ (harmonic approx)   = 31.879
+H_{n-1} (stationary)  = 8.586
+Λ / H_{n-1}           = 4.34x
+Λ_excess              = 28.677
+Λ₃ (initial model)    = 0.056
+Λ − Λ₃               = 37.206
+
+Λ/n (relative bias)   = 0.0124
+H_{n-1}/n (stationary)= 0.0029
+
+z·φ(z) prefactor      = 0.1146
+Predicted ε           = 0.0062
+Predicted coverage    = 0.9486
+  (from mean profile) = 0.9486
+Actual coverage       = 0.9471 +/- 0.0005
+Difference            = 0.0015
+
+PASS: Prediction matches actual coverage within +/-0.01
+
+Variance profile v_s (averaged over seeds):
+  v_1 (first step)    = 0.267483
+  v_{n/2}              = 0.033796
+  v_n (last step)     = 0.020660
+  v_1 / v_n ratio     = 12.95
+  w_1 (first weight)  = 1.6446
+  w_{n/2}              = 0.000333
+  H_{n-1} (= sum w)   = 8.5861
