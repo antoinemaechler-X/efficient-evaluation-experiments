@@ -11,11 +11,7 @@
 #SBATCH --error=logs/final/slurm_wor_bl_%A_%a.err
 #SBATCH --array=0-5
 
-# Load CUDA (check available versions with: ml spider cuda)
-# ml cuda/12.1.0
-
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate /scratch/groups/candes/maechler/faq_env
+source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
 cd ~/efficiently-evaluating-llms
 

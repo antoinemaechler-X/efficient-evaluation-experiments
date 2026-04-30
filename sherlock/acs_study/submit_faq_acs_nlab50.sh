@@ -10,11 +10,7 @@
 #SBATCH --output=logs/acs/nlab50_%j.out
 #SBATCH --error=logs/acs/nlab50_%j.err
 
-# Load CUDA (check available versions with: ml spider cuda)
-# ml cuda/12.1.0
-
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate /scratch/groups/candes/maechler/faq_env
+source /home/groups/gbrice/maechler/Amy_stabl/stabl_env/bin/activate
 
 cd ~/efficiently-evaluating-llms/acs_study
 
