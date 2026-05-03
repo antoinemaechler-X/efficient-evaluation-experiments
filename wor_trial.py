@@ -107,9 +107,17 @@ def trial_faq_wor(
         Sigmahats = (Sigmahats + Sigmahats.mT) / 2.0
 
         # --- h_a: active-learning score (Fisher information-based) ---
-        SigmaV = Sigmahats @ V.T                        # (N_NEW, D, N_QUESTIONS)
-        vtSigmav_js = (SigmaV * V.T).sum(dim=1)         # (N_NEW, N_QUESTIONS)
-        del SigmaV
+        # Chunked over questions to avoid materialising the full (N_NEW, D, N_QUESTIONS)
+        # intermediate which OOMs when D is large (~52).  Each chunk uses only
+        # (N_NEW, D, CHUNK_Q) ≈ a few hundred MB instead of several GB.
+        _CHUNK_Q = 1024
+        vtSigmav_js = torch.empty(N_NEW, N_QUESTIONS, device=device)
+        for _q in range(0, N_QUESTIONS, _CHUNK_Q):
+            _Vc = V[_q:_q + _CHUNK_Q]                   # (chunk, D)
+            _SigV = Sigmahats @ _Vc.T                    # (N_NEW, D, chunk)
+            _SigV.mul_(_Vc.T)                            # in-place: no extra alloc
+            vtSigmav_js[:, _q:_q + _CHUNK_Q] = _SigV.sum(dim=1)
+            del _SigV
         log_denominator = torch.log1p(p1mp_hat_js * vtSigmav_js)
         sq_term = torch.bmm(
             Sigmahats, ((p1mp_hat_js @ V) / N_QUESTIONS).unsqueeze(-1)
