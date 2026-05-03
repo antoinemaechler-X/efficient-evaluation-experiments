@@ -48,7 +48,9 @@ def trial_faq_wor(
         Sigmahats = (Sigmahats + Sigmahats.mT) / 2.0
 
         # h_a: active-learning score (Fisher information-based)
-        vtSigmav_js = torch.einsum("ni,mij,nj->mn", V, Sigmahats, V)
+        SigmaV = Sigmahats @ V.T                        # (N_NEW, D, N_QUESTIONS)
+        vtSigmav_js = (SigmaV * V.T).sum(dim=1)         # (N_NEW, N_QUESTIONS)
+        del SigmaV
         log_denominator = torch.log1p(p1mp_hat_js * vtSigmav_js)
         sq_term = torch.bmm(
             Sigmahats, ((p1mp_hat_js @ V) / N_QUESTIONS).unsqueeze(-1)
