@@ -6,7 +6,7 @@
 #SBATCH --mem=32G
 # Uncomment and set your account (check with: sacctmgr show associations user=$USER)
 ##SBATCH -A candes
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --output=logs/final/slurm_wor_final_tau_%A_%a.out
 #SBATCH --error=logs/final/slurm_wor_final_tau_%A_%a.err
 #SBATCH --array=0-5
