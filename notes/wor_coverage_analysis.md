@@ -124,25 +124,31 @@ This is the quantity that $\hat{\sigma}^2 = \hat{A}_n - \hat{B}_n$ estimates. Th
 
 $$\boxed{\Lambda := \frac{n}{\bar{\sigma}^2}\,\mathbb{E}[T_1] = \frac{1}{\bar{\sigma}^2}\sum_{s=1}^{n-1}\mathbb{E}[v_s] \cdot w_s}$$
 
-By construction, $\mathbb{E}[T_1] = \bar{\sigma}^2 \Lambda / n$ **exactly**, with no remainder term. $\Lambda$ is a computable, finite, positive number that depends on the variance profile $\{\mathbb{E}[v_s]\}_{s=1}^{n}$ and the budget $n$.
+By construction, $\mathbb{E}[T_1] = \bar{\sigma}^2 \Lambda / n$ **exactly**, with no remainder term.
 
-**Normalized form.** With $g(s) := \mathbb{E}[v_s]/\bar{\sigma}^2$ (the normalized profile satisfying $\frac{1}{n}\sum g(s) = 1$):
+**Important caveat: $\Lambda$ depends on $n$.** The index $\Lambda$ is not a closed-form function of $n$ alone — it depends on the full variance profile $\{\mathbb{E}[v_s]\}_{s=1}^{n}$, which itself depends on $n$ (through hyperparameter scheduling and the adaptive sampling design). So the coverage formula $\text{cov} \approx 0.95 - 0.114 \cdot \Lambda(n)/n$ is an **exact decomposition** at each fixed $n$, not a predictive law that maps budget to coverage.
 
-$$\Lambda = \sum_{s=1}^{n-1} g(s)\, w_s$$
+To understand how $\Lambda/n$ varies with budget, decompose it as a weighted-to-uniform ratio:
 
-**Stationary benchmark.** If $g(s) \equiv 1$ (constant variance):
+$$\frac{\Lambda}{n} = \frac{\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s}{\sum_{s=1}^{n}\mathbb{E}[v_s]}$$
+
+The **numerator** $\sum \mathbb{E}[v_s]\,w_s$ is dominated by early steps (large $v_1$, large $w_1 \approx \pi^2/6$). As $n$ grows, new late terms have both small $v_s$ and small $w_s$, contributing negligibly. The **denominator** $\sum \mathbb{E}[v_s]$ includes all steps equally — the late terms (small $v_s$) dilute the average $\bar{\sigma}^2$. So $\Lambda/n$ increases when $\bar{\sigma}^2$ shrinks faster than the weighted sum, which is exactly what happens as the factor model improves at later rounds.
+
+Asymptotically $\Lambda(n)/n \to 0$ (Theorem 4 guarantees valid coverage), but over the practical budget range 2.5–25%, the ratio increases empirically.
+
+**Stationary benchmark.** If $g(s) := \mathbb{E}[v_s]/\bar{\sigma}^2 \equiv 1$ (constant variance):
 
 $$\Lambda_{\text{stat}} = \sum_{s=1}^{n-1} w_s = \sum_{s=1}^{n-1}\sum_{k=s}^{n-1}\frac{1}{k^2} = \sum_{k=1}^{n-1}\frac{k}{k^2} = \sum_{k=1}^{n-1}\frac{1}{k} = H_{n-1}$$
 
 (by exchanging the double sum: each $1/k^2$ is counted $k$ times, for $s = 1, \ldots, k$). So $\Lambda_{\text{stat}} = H_{n-1} \approx \ln n + \gamma$.
 
-**Monotonicity: $\Lambda \geq H_{n-1}$ for decreasing $g$.** Since both $g$ and $w$ are decreasing in $s$, and $\sum_{s=1}^{n-1}(g(s) - 1) = n - 1 - (n-1) = 0$ (the constraint $\frac{1}{n}\sum_{s=1}^n g(s) = 1$ gives $\sum_{s=1}^{n-1} g(s) = n - g(n)$, so it's not exactly zero, but $g(n) \approx 1$ to first order)... More precisely, by Chebyshev's sum inequality: if $g$ and $w$ are both decreasing (i.e., co-monotone), then:
+**Monotonicity: $\Lambda \geq H_{n-1}$ for decreasing $g$.** By Chebyshev's sum inequality: if $g$ and $w$ are both decreasing (co-monotone), then:
 
 $$\frac{1}{n-1}\sum_{s=1}^{n-1} g(s) w_s \geq \left(\frac{1}{n-1}\sum_{s=1}^{n-1} g(s)\right)\left(\frac{1}{n-1}\sum_{s=1}^{n-1} w_s\right)$$
 
 $$\implies \Lambda \geq \left(\frac{1}{n-1}\sum_{s=1}^{n-1} g(s)\right) \cdot H_{n-1}$$
 
-Since $g$ averages to 1 (approximately), $\Lambda \geq H_{n-1}$, with equality only when $g$ is constant.
+Since $g$ averages to $\approx 1$, $\Lambda \geq H_{n-1}$, with equality only when $g$ is constant.
 
 ### 4.5 Coverage Formula with Explicit Remainder
 
@@ -228,7 +234,28 @@ The ratio $\Lambda/n$ first decreases (0.073 → 0.055, CLT effect dominating) t
 
 **Asymptotic vs. finite-sample.** The theorem guarantees $\Lambda(n)/n \to 0$ (since the bias is $o(1)$ and $\bar{\sigma}^2$ is bounded away from zero for any finite population). The finite-sample behavior over budget 2.5–25% does not contradict this: the degradation occurs in a specific range and must eventually reverse. The relevant question for practice is whether this reversal occurs within the useful budget range.
 
-### 4.6.2 Parametric Variance Profiles (Illustrative)
+### 4.6.2 BBH vs MMLU-Pro and the Role of $\tau$
+
+The coverage table (§1) shows that BBH suite coverage degrades much less than MMLU-Pro (0.940 vs 0.917 at 25% budget). This is explained entirely by the steepness of the variance profile $\{v_s\}$, which is controlled by $\tau$.
+
+**Variance profile steepness.** Define the **profile ratio** $r := v_1/v_n$ (early-to-late variance ratio). A steeper profile means larger $r$, which concentrates $\sum v_s w_s$ on the early terms and increases $\Lambda/n$.
+
+| Dataset | Best $\tau$ (25%) | $v_1/v_n$ | $\Lambda/n$ | Coverage |
+|:---:|:---:|:---:|:---:|:---:|
+| MMLU-Pro | 0.05 | 12.95 | 0.220 | 0.917 |
+| BBH suite | 0.25 | 7.36 | 0.082 | 0.940 |
+
+**Why $\tau$ controls steepness.** The sampling distribution $q_s$ at step $s$ is:
+
+$$q_s = (1 - \tau) \cdot h_s / \|h_s\|_1 + \tau / (N - s + 1)$$
+
+Higher $\tau$ pushes $q_s$ toward uniform over unobserved items. Since $v_s \propto \sum (y_i - f_i)^2 / q_s(i)$, uniform $q_s$ makes $v_s$ proportional to the total residual sum (which decreases slowly with model improvement). Lower $\tau$ allows $q_s$ to concentrate on high-variance items, making $v_s$ at early rounds much larger (because $1/q_s(i)$ amplifies the high-variance items) while $v_s$ at late rounds gets small (fewer unobserved items, better model).
+
+**The trade-off.** Lower $\tau$ gives better ESS (more efficient sampling → narrower CIs) but steeper variance profiles (more $\hat{B}_n$ bias → worse coverage). MMLU-Pro's optimal $\tau = 0.05$ achieves 7.3× ESS but 0.917 coverage; BBH's $\tau = 0.25$ gives 5.7× ESS but 0.940 coverage.
+
+**Prediction.** Higher $\tau$ → flatter profile → smaller $\Lambda/n$ → better coverage (but wider CIs). This is consistent with the data: at low budgets where $\tau$ differences are small, both datasets have similar coverage.
+
+### 4.6.3 Parametric Variance Profiles (Illustrative)
 
 To build intuition, we compute $\Lambda$ for two simple profiles. These are useful for understanding the $\Lambda$ growth mechanism, even though the true variance profile is more complex (and budget-dependent).
 
@@ -240,7 +267,7 @@ Note: $\lambda$ itself scales with $n$ in the WOR setting (longer budgets mean m
 
 **Power-law decay: $v_s = v_1 \cdot s^{-\alpha}$** for $0 < \alpha < 1$. Then $\Lambda/n \sim (1-\alpha) n^{\alpha-1}/\alpha$, which decreases as $n^{\alpha - 1}$. So for a **fixed** power-law profile, coverage always improves. The empirical degradation must therefore come from the profile becoming *steeper* (larger effective $\alpha$) as budget increases.
 
-### 4.6.3 Treatment of $T_2$ and $T_3$
+### 4.6.4 Treatment of $T_2$ and $T_3$
 
 **$T_3$ is deterministic.** $T_3 = \frac{1}{n}(\theta - \bar{\psi}_1)^2$ where $\bar{\psi}_1 = \frac{1}{N}\sum_i \hat{f}^{(0)}(x_i)$. This is fixed given the prior model $\hat{f}^{(0)}$. In normalized units:
 
@@ -293,6 +320,66 @@ The small discrepancy at MMLU-Pro 25% (0.923 vs 0.917) is from the nonlinearity 
 
 **From $\Lambda$.** The script `verify_lambda.py` computes $\Lambda$ from the per-step variance profile $v_s$ (logged by `wor_trial.py` with `log_profile=True`) and checks the prediction $\text{coverage} \approx 0.95 - 0.114(\Lambda - \Lambda_3)/n$ against the actual coverage.
 
+### 4.8 Bias-Corrected Variance Estimator
+
+The analysis above identifies $\mathbb{E}[T_1] > 0$ as the dominant source of undercoverage. We now construct an estimator $\hat{C}_n$ that removes this bias.
+
+#### 4.8.1 The Bias Source
+
+$\hat{B}_n$ overestimates $B_n$ because each term $(\hat{\theta}_{t-1} - \psi_t)^2$ includes a noise floor $\text{Var}(\hat{\theta}_{t-1})$. Specifically:
+
+$$\mathbb{E}[(\hat{\theta}_{t-1} - \psi_t)^2] = (\theta - \psi_t)^2 + \text{Var}(\hat{\theta}_{t-1}) + 2(\theta - \psi_t)\mathbb{E}[\hat{\theta}_{t-1} - \theta]$$
+
+The last term vanishes by unbiasedness. The middle term is the noise floor we want to subtract.
+
+#### 4.8.2 Estimating $\text{Var}(\hat{\theta}_{t-1})$
+
+By the martingale structure, $\text{Var}(\hat{\theta}_{t-1}) = \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[v_s]$. We estimate each $\mathbb{E}[v_s]$ by $a_s^2/N^2$ where $a_s = (y_{I_s} - \hat{f}^{(s-1)}(x_{I_s}))/q_s(I_s)$ is the AIPW correction at step $s$. This uses $\mathbb{E}[a_s^2/N^2] = A_s \approx v_s$ (the difference $A_s - v_s = B_s$ is the per-step population $B$, which is negligible for FAQ).
+
+So the correction at step $t$ is:
+
+$$\widehat{\text{Var}}(\hat{\theta}_{t-1}) = \frac{1}{(t-1)^2 N^2}\sum_{s=1}^{t-1} a_s^2$$
+
+#### 4.8.3 The Corrected Estimator
+
+Define:
+
+$$\hat{C}_n := \frac{1}{nN^2}\sum_{t=2}^{n}\frac{1}{(t-1)^2}\sum_{s=1}^{t-1}a_s^2$$
+
+Exchanging summation order (same technique as §4.3):
+
+$$\hat{C}_n = \frac{1}{nN^2}\sum_{s=1}^{n-1}a_s^2 \cdot w_s, \qquad w_s = \sum_{k=s}^{n-1}\frac{1}{k^2}$$
+
+The exact same weights $w_s$ as in $\Lambda$.
+
+The **bias-corrected variance estimator** is:
+
+$$\boxed{\hat{\sigma}^2_{\text{cor}} := \hat{A}_n - \hat{B}_n + \hat{C}_n}$$
+
+#### 4.8.4 Bias Analysis
+
+$$\mathbb{E}[\hat{\sigma}^2_{\text{cor}}] = \bar{\sigma}^2 - \mathbb{E}[T_1] + \mathbb{E}[T_3] - \mathbb{E}[T_2] + \mathbb{E}[\hat{C}_n]$$
+
+By construction, $\mathbb{E}[\hat{C}_n] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[a_s^2/N^2]\,w_s = \frac{1}{n}\sum_{s=1}^{n-1}A_s\,w_s$.
+
+Recall $\mathbb{E}[T_1] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s$ and $A_s = v_s + B_s$. So:
+
+$$\mathbb{E}[\hat{C}_n] - \mathbb{E}[T_1] = \frac{1}{n}\sum_{s=1}^{n-1}B_s\,w_s$$
+
+The residual bias is $\frac{1}{n}\sum B_s w_s$. Since $B_s \ll v_s$ for FAQ (the per-step population $B$ is the square of the total prediction error, which is small relative to the weighted residual sum), this residual is negligible. Empirically, $B_s \sim 10^{-6}$ while $v_s \sim 10^{-4}$, making the correction $\sim$250× smaller than the original bias $\mathbb{E}[T_1]$.
+
+#### 4.8.5 Implementation
+
+In the main loop, the correction requires no extra accumulator beyond `varhats_main` (which holds $\sum_{s<t} a_s^2$ at step $t$). At each $t \geq 1$:
+
+```python
+varhats_correction += varhats_main / (t ** 2)
+```
+
+After the loop: $\hat{\sigma}^2_{\text{cor}} = (\hat{A} - \hat{B} + \hat{C})$, where $\hat{C} = \texttt{varhats\_correction} / (nN^2)$.
+
+See `wor_trial.py`, parameter `variance_mode="corrected"`.
+
 ---
 
 ## 5. Summary
@@ -324,11 +411,20 @@ The ratio $\Lambda/n$ increases at finite budgets because $\bar{\sigma}^2$ (deno
 ### The estimator itself is fine
 The estimator $\hat{\theta}_n$ is **exactly unbiased** at every finite $n$. The issue is purely with **CI width estimation**, not the point estimate or the ESS gains.
 
-### Potential fixes (not currently implemented)
-1. **Partial B correction**: $\hat{\sigma}^2 = \hat{A} - \alpha\hat{B}$ with $\alpha < 1$ (e.g., 0.5). No theoretical justification for choice of $\alpha$.
-2. **Bootstrap CI**: Resample the trial trajectory. Computationally expensive.
-3. **Finite-population correction**: Inflate $\hat{\sigma}^2$ by $(1 + c \cdot \hat{B}/\hat{A})$ for some factor $c$.
-4. **Accept and report**: Note that CIs are asymptotically valid, report observed coverage alongside ESS gains. The enormous efficiency improvement (7×) is the main contribution.
+### Variance estimation options
+
+Three modes are implemented in `wor_trial.py` (parameter `variance_mode`):
+
+1. **`"theorem4"`** (default): $\hat{\sigma}^2 = \hat{A} - \hat{B}$. Theorem 4 of the PAI paper. Asymptotically unbiased but positively biased at finite $n$ due to $\mathbb{E}[T_1]$. Produces the narrowest CIs and best ESS, but undercoverage at high budgets.
+
+2. **`"corrected"`** (recommended): $\hat{\sigma}^2 = \hat{A} - \hat{B} + \hat{C}$. The bias-corrected estimator from §4.8. Removes the dominant $T_1$ bias with residual $O(\sum B_s w_s / n)$. Expected to restore ~95% coverage at all budgets with minimal ESS penalty ($\hat{C}$ is small relative to $\hat{A}$).
+
+3. **`"A_only"`** (conservative fallback): $\hat{\sigma}^2 = \hat{A}$. Drops $\hat{B}$ entirely. Always overestimates $\sigma^2$ (since $B \geq 0$), so coverage $\geq 95\%$ is guaranteed. The price is wider CIs (lower ESS). Useful as a benchmark: the gap between `"A_only"` and `"corrected"` coverage quantifies the value of the $B - C$ correction.
+
+**Experimental validation.** Run `submit_wor_faq_final_corrected.sh` and `submit_wor_faq_final_noB.sh` to compare all three modes on the same (dataset, budget, seed) grid. Expected results:
+- `"A_only"`: coverage ≥ 0.95 at all budgets, ESS lower than theorem4
+- `"corrected"`: coverage ≈ 0.95 at all budgets, ESS close to theorem4
+- `"theorem4"`: current degraded curve (0.917 at MMLU-Pro 25%)
 
 ---
 

@@ -32,7 +32,7 @@ def trial_faq_wor(
     N_NEW, N_QUESTIONS, N_B,
     beta0, rho, gamma, tau, seed, device,
     ALPHA=0.05, counter=0, disable_tqdm=True,
-    log_profile=False):
+    log_profile=False, variance_mode="theorem4"):
     """
     Run one FAQ trial with WITHOUT-REPLACEMENT sampling.
 
@@ -51,6 +51,10 @@ def trial_faq_wor(
         log_profile: if True, log per-step conditional variance v_s
             (averaged across models) for computing the non-stationarity
             index Λ. See notes/wor_coverage_analysis.md §4.3–4.4.
+        variance_mode: how to estimate σ² for CI construction.
+            "theorem4": σ̂² = Â − B̂ (default, Theorem 4 of PAI paper)
+            "A_only": σ̂² = Â (drop B̂ entirely; conservative)
+            "corrected": σ̂² = Â − B̂ + Ĉ (bias-corrected; see §4.8)
 
     Returns:
         [mean_width, coverage] if log_profile=False
@@ -76,6 +80,10 @@ def trial_faq_wor(
     # B_hat: Σ_{t=2}^n (N*theta_hat_{t-1} - imputed_sum_t)^2
     # where N*theta_hat_{t-1} = (1/(t-1)) * Σ_{s<t} phi_s  (running average of past phis)
     varhats_b = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
+
+    # C_hat: bias correction for B_hat (§4.8). Accumulates Σ_{s<t} a_s^2 / t^2.
+    if variance_mode == "corrected":
+        varhats_correction = torch.zeros(N_NEW, 1, dtype=torch.float32, device=device)
 
     # Per-step variance profile for non-stationarity index (§4.3)
     if log_profile:
@@ -199,6 +207,9 @@ def trial_faq_wor(
         if t >= 1:
             ntheta_prev = thetahats / t  # = (1/(t)) * Σ_{s=0}^{t-1} phi_s  [unnorm, = N*theta_hat_{t-1}]
             varhats_b += (ntheta_prev - imputed_sum) ** 2
+            # C_hat: accumulate Var(θ̂_{t-1}) ≈ (1/t²) Σ_{s<t} a_s²
+            if variance_mode == "corrected":
+                varhats_correction += varhats_main / (t ** 2)
 
         thetahats += phi_t
 
@@ -233,14 +244,20 @@ def trial_faq_wor(
     # θ̂_n = (1/n) · (1/N) · Σ_t φ_t  (φ_t was accumulated without 1/N)
     thetahats_T = thetahats / (N_B * N_QUESTIONS)
 
-    # Variance estimation — correct WOR formula (Theorem 4):
-    # sigma_hat^2 = A_hat - B_hat
-    # A_hat = (1/(n*N^2)) * Σ_t (y_{I_t} - f_{I_t})^2 / q_t^2
-    # B_hat = (1/(n*N^2)) * Σ_{t=2}^n (N*theta_hat_{t-1} - imputed_sum_t)^2
+    # Variance estimation — depends on variance_mode:
+    # "theorem4": σ̂² = Â − B̂  (Theorem 4, default)
+    # "A_only":   σ̂² = Â       (drop B̂; conservative)
+    # "corrected": σ̂² = Â − B̂ + Ĉ  (bias-corrected, §4.8)
     v_T_sq_simp = varhats_main / (N_B * (N_QUESTIONS ** 2))
     v_T_sq_minus = varhats_b / (N_B * (N_QUESTIONS ** 2))
 
-    v_T_sq_full = (v_T_sq_simp - v_T_sq_minus).clamp(min=0)
+    if variance_mode == "A_only":
+        v_T_sq_full = v_T_sq_simp
+    elif variance_mode == "corrected":
+        v_T_sq_corr = varhats_correction / (N_B * (N_QUESTIONS ** 2))
+        v_T_sq_full = (v_T_sq_simp - v_T_sq_minus + v_T_sq_corr).clamp(min=0)
+    else:  # theorem4
+        v_T_sq_full = (v_T_sq_simp - v_T_sq_minus).clamp(min=0)
 
     # 95% CI
     z_score = norm.ppf(1 - (ALPHA / 2))
