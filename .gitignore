@@ -24,3 +24,6 @@ environment_local.yml
 
 #zip files
 *.zip
+
+# saturation study
+saturation_study/
