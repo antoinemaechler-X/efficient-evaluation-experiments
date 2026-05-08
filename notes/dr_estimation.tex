@@ -1,0 +1,64 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{natbib}
+\title{DR Estimation for AI Evaluation}
+\author{Aishwarya Mandyam, Sang Truong}
+\date{March 2026}
+
+\begin{document}
+
+\maketitle
+
+\section{Problem Setup}
+
+Suppose we have a matrix $M \in \mathbb{R}^{n \times p}$ where the $(i, j)$ entry corresponds to the performance of model $m_i$ on benchmark $b_j$, for $i \in [n]$ and $j \in [p]$. Because we do not have the performance of all models on all benchmarks, $M$ is not fully observed. To represent this partially unobserved behavior, let $O \in \{0, 1\}^{n \times p}$ be the observation mask, where $O_{ij} = 1$ if model $m_i$ has been evaluated on benchmark $b_j$ and $O_{ij} = 0$ otherwise. We denote the observed dataset as $\mathcal{D} = \{(i, j, M_{ij}) : O_{ij} = 1\}$.
+
+We assume that for each model $m_i$, we can observe a feature vector $\mathbf{x}_i \in \mathcal{X}$, which includes relevant information such as parameter count, architecture family, training organization, and release date. Similarly, each benchmark $b_j$ has a feature vector $\mathbf{z}_j \in \mathcal{Z}$ encoding properties such as domain, evaluation cost, and release date.
+
+We consider two inference goals. The first is \textbf{benchmark generalization}: given an existing model $m_i$ and a new benchmark $b_{j^*}$. The second is \textbf{model generalization}: given a new model $m_{i^*}$ and existing benchmarks, predict $M_{i^*j}$ for one or more benchmarks $j$.
+
+We frame this as a missing data problem. The missingness mechanism is characterized by the propensity $\pi(i, j) = P(O_{ij} = 1 \mid m_i, b_j)$, the probability that the $(i, j)$ pair is observed. 
+
+\section{Prior Approaches}
+The standard approach to imputing missing entries of $M$ treats the problem as regression. Regression-based approaches treat each missing entry as a prediction target and train a model $\hat{R}(i, j)$ using model and benchmark features $(\mathbf{x}_i, \mathbf{z}_j)$. The learned model can be parameterized in a variety of ways. 
+
+Regression-based approaches implicitly assume that the observed entries of $M$ are representative of the missing ones. That is, they proceed as though the observation mask $O$ is independent of $M$. When this assumption fails (e.g., when models are more likely to be evaluated on benchmarks where they perform well, or benchmarks are selectively reported) estimates based solely on $\hat{R}(i, j)$ will be biased toward the observed, potentially unrepresentative portion of the matrix. Correcting for this selection bias requires explicitly modeling the missingness mechanism.
+
+\section{Doubly Robust Estimation}
+Doubly robust (DR) estimation, also known as augmented inverse propensity weighting (AIPW), is a classical technique from the causal inference and statistics literature~\citep{kang2007demystifying} that combines a direct outcome model with a model of the missingness mechanism in a way that is robust to misspecification of either one.
+
+The key quantities are the \textbf{direct model} $\hat{R}(i,j)$, which predicts performance from model and benchmark features, and the \textbf{propensity model} $\hat{\pi}(i,j) = \hat{P}(O_{ij} = 1 \mid \mathbf{x}_i, \mathbf{z}_j)$, which estimates the probability that a given $(i,j)$ pair is observed. The DR estimator for a missing entry $(i^*, j^*)$ combines these as
+\begin{equation}
+    \hat{V}^{\mathrm{DR}}_{i^*j^*} = \hat{R}(i^*, j^*) + \frac{O_{i^*j^*}}{\hat{\pi}(i^*, j^*)}\left(M_{i^*j^*} - \hat{R}(i^*, j^*)\right).
+    \label{eq:dr}
+\end{equation}
+The second term is an inverse propensity weighted correction applied to the residual of the direct model: when entry $(i^*, j^*)$ is observed, the residual $M_{i^*j^*} - \hat{R}(i^*, j^*)$ is upweighted by the inverse of its observation probability, correcting for the fact that observed entries are not a representative sample. When the entry is unobserved, the correction term vanishes and the estimator reduces to $\hat{R}(i^*, j^*)$.
+
+The estimator in \eqref{eq:dr} satisfies the \textbf{double robustness} property: it is consistent if either $\hat{R}(i,j)$ is correctly specified or $\hat{\pi}(i,j)$ is correctly specified, but not necessarily both. Intuitively, a good direct model needs little correction from the propensity term, while a good propensity model ensures the correction is applied with the right weights. This redundancy makes DR estimation more reliable than either component alone in settings where one model may be misspecified.
+
+The validity of this approach rests critically on the missingness assumption. Under MAR, $\hat{\pi}$ (i.e., the estimate of the policy $\pi$) is identified from the observed data using $(\mathbf{x}_i, \mathbf{z}_j)$ as covariates, and the DR estimator is fully justified. 
+
+\section{Applying DR estimation to the AI Evaluation Framework}
+
+Applying DR estimation to the benchmark evaluation setting raises several questions that we outline here.
+\paragraph{Is the missingness mechanism MAR or MNAR?}
+The MAR assumption requires that the probability of observing $M_{ij}$ depends only on model and benchmark metadata $(\mathbf{x}_i, \mathbf{z}_j)$, and not on the performance value itself. This is plausible when missingness is driven by logistical factors such as benchmark cost, release timing, or domain relevance. However, there is reason to suspect MNAR in practice: organizations may selectively report benchmark results that reflect favorably on their models, inducing a dependence between $O_{ij}$
+$M_{ij}$
+. Distinguishing between these regimes empirically is difficult, since MNAR is not directly testable from the observed data. A practical path forward is to proceed under MAR while conducting sensitivity analyses that characterize how conclusions change as a function of the degree of unmeasured selection.
+
+\paragraph{Estimating the propensity $\hat{\pi}(i, j)$}
+Under MAR, the propensity $\pi(i,j) = P(O_{ij} = 1 \mid \mathbf{x}_i, \mathbf{z}_j)$
+is identified and can be estimated as a binary classification problem over the observed and unobserved cells of $M$. In practice, propensity estimates near zero can cause instability in the IPW correction term; clipping or stabilized weights may be necessary.
+
+\paragraph{Benchmark-level vs.\ question-level granularity.}
+The formulation above treats $M_{ij}$
+as a scalar summary of model $m_i$'s performance on benchmark $b_j$, typically an aggregate accuracy or score. However, benchmarks are composed of individual questions or tasks, and there may be value in operating at finer granularity. Question-level modeling allows for richer characterization of model capabilities and could enable imputation not just of missing benchmarks but of missing questions within partially-evaluated benchmarks. This comes at the cost of a much larger and sparser observation matrix, and raises additional questions about how the propensity model should be specified at the question level.
+
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
