@@ -144,7 +144,9 @@ def make_figure(ess_col, ess_serr_col, methods, out_path, legend_ncol=3, budget_
 
     os.makedirs("galaxy_study/figures", exist_ok=True)
     plt.savefig(out_path, facecolor="white", bbox_inches="tight")
-    print(f"Saved {out_path}")
+    png_path = out_path.replace(".pdf", ".png")
+    plt.savefig(png_path, facecolor="white", bbox_inches="tight")
+    print(f"Saved {out_path} + {png_path}")
     plt.close()
 
 
