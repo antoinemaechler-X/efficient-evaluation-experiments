@@ -107,20 +107,12 @@ for dataset, title, col, xlabel in datasets_config:
         q_wor_025.prop_budget * nq, q_wor_025.ess_multiplier * budgets * nq,
         yerr=q_wor_025.ess_multiplier_serr * budgets * nq,
         marker="D", capsize=MARKERSIZE, capthick=1.0, color=colors[4])
-    for x, y, z in zip(q_wor_025.prop_budget * nq, q_wor_025.ess_multiplier,
-                       q_wor_025.ess_multiplier * budgets * nq):
-        ax_ess.annotate(f"{y:.2f}", xy=(x, z),
-                        textcoords="offset points", xytext=(0, SMALL_SIZE // 2 - 1), ha="center")
 
     # WOR-FAQ tau=0.5
     ax_ess.errorbar(
         q_wor_05.prop_budget * nq, q_wor_05.ess_multiplier * budgets * nq,
         yerr=q_wor_05.ess_multiplier_serr * budgets * nq,
         marker="P", capsize=MARKERSIZE, capthick=1.0, color=colors[5])
-    for x, y, z in zip(q_wor_05.prop_budget * nq, q_wor_05.ess_multiplier,
-                       q_wor_05.ess_multiplier * budgets * nq):
-        ax_ess.annotate(f"{y:.2f}", xy=(x, z),
-                        textcoords="offset points", xytext=(0, SMALL_SIZE // 2 - 1), ha="center")
 
     ax_ess.grid()
     ax_ess.set_title(title)

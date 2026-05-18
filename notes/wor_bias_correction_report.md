@@ -14,7 +14,7 @@ $$\mathbb{E}[\hat{B}_n] - B_n = \mathbb{E}[T_1] + \mathbb{E}[T_2] - \mathbb{E}[T
 
 where the dominant term is
 
-$$\mathbb{E}[T_1] = \frac{\bar{\sigma}^2 \Lambda}{n} = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s, \qquad w_s := \sum_{k=s}^{n-1}\frac{1}{k^2}$$
+$$\mathbb{E}[T_1] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s, \qquad w_s := \sum_{k=s}^{n-1}\frac{1}{k^2}$$
 
 with $v_s := \mathbb{E}[\Delta_s^2 \mid \mathcal{F}_{s-1}]$ the per-step conditional variance and $\Delta_s = \phi_s - \theta$ the martingale increment. This bias causes $\hat{\sigma}^2$ to underestimate $\bar{\sigma}^2$, and coverage to degrade from 0.950 to 0.917 (MMLU-Pro, 25% budget).
 
@@ -22,19 +22,47 @@ The goal of this note: construct a term $\hat{C}_n$ such that $\hat{\sigma}^2_{\
 
 ---
 
-## 2. The Source of $T_1$: A Noise-Floor Argument
+## 2. The Exact Decomposition $\hat{B}_n - B_n = T_1 + T_2 - T_3$
 
-$T_1$ arises because $\hat{B}_n$ replaces the true mean $\theta$ with the running estimate $\hat{\theta}_{t-1}$. Each term of $\hat{B}_n$ is:
+$\hat{B}_n$ replaces the true mean $\theta$ with the running estimate $\hat{\theta}_{t-1}$. The exact algebraic identity (no expectations) for each $t \geq 2$ is:
 
-$$(\hat{\theta}_{t-1} - \psi_t)^2 = \bigl((\hat{\theta}_{t-1} - \theta) - (\psi_t - \theta)\bigr)^2$$
+$$(\hat{\theta}_{t-1} - \psi_t)^2 - (\theta - \psi_t)^2 = (\hat{\theta}_{t-1} - \theta)^2 + 2(\hat{\theta}_{t-1} - \theta)(\theta - \psi_t)$$
 
-Expanding and taking expectations (using unbiasedness $\mathbb{E}[\hat{\theta}_{t-1}] = \theta$):
+This is just $(a+b)^2 - b^2 = a^2 + 2ab$ with $a = \hat{\theta}_{t-1} - \theta$ and $b = \theta - \psi_t$. Note that $\psi_t$ is random (it depends on $O_{t-1}$), so the cross term $2(\hat{\theta}_{t-1} - \theta)(\theta - \psi_t)$ does **not** vanish — neither pathwise nor in expectation.
 
-$$\mathbb{E}[(\hat{\theta}_{t-1} - \psi_t)^2] = \underbrace{(\theta - \psi_t)^2}_{\text{term in } B_n} + \underbrace{\text{Var}(\hat{\theta}_{t-1})}_{\text{noise floor}} + \underbrace{2(\theta - \psi_t)\,\mathbb{E}[\hat{\theta}_{t-1} - \theta]}_{= 0}$$
+Summing over $t = 2, \ldots, n$ and dividing by $n$:
 
-So $\mathbb{E}[\hat{B}_n]$ exceeds $B_n$ by exactly $\frac{1}{n}\sum_{t=2}^n \text{Var}(\hat{\theta}_{t-1}) = \mathbb{E}[T_1]$.
+$$\frac{1}{n}\sum_{t=2}^n \left[(\hat{\theta}_{t-1} - \psi_t)^2 - (\theta - \psi_t)^2\right] = \underbrace{\frac{1}{n}\sum_{t=2}^n (\hat{\theta}_{t-1} - \theta)^2}_{T_1} + \underbrace{\frac{2}{n}\sum_{t=2}^n (\hat{\theta}_{t-1} - \theta)(\theta - \psi_t)}_{T_2}$$
 
-**The fix is immediate in principle**: subtract an estimate of $\text{Var}(\hat{\theta}_{t-1})$ for each $t$.
+Additionally, $\hat{B}_n$ sums from $t = 2$ while $B_n$ sums from $t = 1$. The missing $t = 1$ term gives:
+
+$$T_3 := \frac{1}{n}\left(\theta - \frac{1}{N}\sum_i \hat{f}^{(0)}(x_i)\right)^2$$
+
+Combining: $\hat{B}_n - B_n = T_1 + T_2 - T_3$ **exactly** (pathwise, for every realization).
+
+### Why $T_1$ dominates
+
+All three terms contribute to $\mathbb{E}[\hat{B}_n - B_n] = \mathbb{E}[T_1] + \mathbb{E}[T_2] - \mathbb{E}[T_3]$, but their magnitudes differ by orders of magnitude:
+
+**$T_1$ (noise floor).** $T_1 \geq 0$ always. Its expectation is $\mathbb{E}[T_1] = \frac{1}{n}\sum_{t=2}^n \text{Var}(\hat{\theta}_{t-1})$, which equals $\frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s$ after the sum exchange (§3). At MMLU-Pro 25% with $\tau = 0.05$: $\mathbb{E}[T_1]/\bar{\sigma}^2 \approx 0.22$.
+
+**$T_3$ (initial model error).** $T_3$ is deterministic (depends only on the initial model $\hat{f}^{(0)}$) and enters with a minus sign, partially offsetting the bias. In normalized units: $T_3/\bar{\sigma}^2 = (\theta - \bar{\psi}_1)^2/(n\bar{\sigma}^2)$. The $1/n$ factor makes this $O(10^{-6})$ — negligible.
+
+**$T_2$ (cross-correlation).** Since $\mathbb{E}[\hat{\theta}_{t-1}] = \theta$, each term is a covariance: $\mathbb{E}[(\hat{\theta}_{t-1} - \theta)(\theta - \psi_t)] = -\text{Cov}(\hat{\theta}_{t-1}, \psi_t)$. Now $\psi_1$ is deterministic (fixed initial model), so $\text{Cov}(\hat{\theta}_{t-1}, \psi_t) = \text{Cov}(\hat{\theta}_{t-1}, \psi_t - \psi_1)$. The covariance arises because sampling item $I_s$ at step $s$ affects both:
+- $\hat{\theta}$, via the AIPW increment $r_{I_s}/(N q_s(I_s))$ — amplified by $1/q_s$
+- $\psi_{s+1} - \psi_s \approx r_{I_s}/N$ — amplified only by $1/N$
+
+The conditional covariance from this shared randomness at step $s$ is:
+
+$$\text{Cov}\!\left(\frac{r_{I_s}}{Nq_s(I_s)},\; \frac{r_{I_s}}{N}\;\middle|\;\mathcal{F}_{s-1}\right) = \frac{1}{N^2}\left[\sum_{i \notin O_{s-1}} r_i^2 - \left(\sum_i r_i\right)\!\left(\sum_i q_s(i)\,r_i\right)\right] \;\approx\; \frac{\overline{r^2}}{N}$$
+
+where $\overline{r^2} = \frac{1}{M}\sum r_i^2$ is the mean squared residual. The key: this is $\sim v_s / N$ (the per-step variance scaled down by $1/N$). This per-step covariance propagates through the running average with harmonic weights $\sim 1/(t-1)$ for later rounds. After the double-sum bookkeeping:
+
+$$|\mathbb{E}[T_2]| \;\lesssim\; \frac{\ln(n)}{N}\cdot\frac{1}{n}\sum_{s=1}^{n-1} v_s \;=\; \frac{\bar{\sigma}^2\ln(n)}{N}$$
+
+For $n = 3000$, $N = 12{,}000$, $\bar{\sigma}^2 \sim 10^{-4}$: $|\mathbb{E}[T_2]| \lesssim 10^{-4} \times 8 / 12{,}000 \sim 10^{-7}$.
+
+**Summary:** $\mathbb{E}[\hat{B}_n - B_n] \approx \mathbb{E}[T_1]$ with the approximation error $|\mathbb{E}[T_2]| \lesssim 10^{-7}$ and $\mathbb{E}[T_3] \lesssim 10^{-6}$, both negligible compared to $\mathbb{E}[T_1] \sim 10^{-5}$. The fix targets $T_1$: subtract an estimate of $\text{Var}(\hat{\theta}_{t-1})$ for each $t$.
 
 ---
 
@@ -52,7 +80,21 @@ $$\mathbb{E}\!\left[\frac{a_s^2}{N^2}\,\middle|\,\mathcal{F}_{s-1}\right] = \fra
 
 And $A_s = v_s + B_s$ where $B_s := \frac{1}{N^2}\!\left(\sum_{i \notin O_{s-1}}(y_i - \hat{f}^{(s-1)}_i)\right)^2$ is the per-step population $B$. So $a_s^2/N^2$ is an unbiased estimator of $A_s$, which overestimates $v_s$ by $B_s$.
 
-**For FAQ, $B_s \ll v_s$ uniformly.** Empirically, $B_s \sim 10^{-6}$ while $v_s \sim 10^{-4}$ across all steps and budgets. The ratio $B_s/v_s \lesssim 1\%$. This is because $B_s = \frac{1}{N^2}(\sum_{i\notin O_{s-1}} e_i)^2$ involves a sum of $\sim N-s$ near-independent residuals, which cancels as $(N-s)/N^2 = O(1/N)$, while $A_s = \frac{1}{N^2}\sum e_i^2/q_s(i)$ does not cancel.
+**Why $B_s \ll A_s$ (and hence $B_s \ll v_s$).** Both $A_s$ and $B_s$ have the same $(N-s+1)^2/N^2$ scaling. To see this, let $M = N - s + 1$ be the number of remaining items, $\bar{r} = \frac{1}{M}\sum_{i \notin O} r_i$ the mean residual, and $\overline{r^2} = \frac{1}{M}\sum_{i \notin O} r_i^2$ the mean squared residual. Then:
+
+$$B_s = \frac{M^2\bar{r}^2}{N^2}, \qquad A_s^{\,\text{unif}} = \frac{M^2\overline{r^2}}{N^2}$$
+
+The ratio does not depend on $N$ at all:
+
+$$\frac{B_s}{A_s^{\,\text{unif}}} = \frac{\bar{r}^2}{\overline{r^2}} = \frac{\bar{r}^2}{\sigma_r^2 + \bar{r}^2}$$
+
+where $\sigma_r^2 = \overline{r^2} - \bar{r}^2$ is the variance of residuals across items. This is small iff **the mean residual is small relative to the spread of residuals** — a model calibration property, not an $N$-scaling property. For binary $y_i \in \{0, 1\}$ with predictions $\hat{f}_i \in [0,1]$:
+- $\overline{r^2}$ is the Brier score, typically $\sim 0.1$–$0.25$ (at least $p(1-p)$ even for a constant predictor)
+- $\bar{r} = \bar{y} - \bar{\hat{f}}$ is the calibration error of the model
+
+BLR (fitted by maximum likelihood) is approximately calibrated, so $|\bar{r}| \lesssim 0.01$. This gives $B_s/A_s \lesssim (0.01)^2/0.2 = 0.05\%$. Since $v_s = A_s - B_s$ and $B_s \ll A_s$, we have $B_s/v_s \approx B_s/A_s \lesssim 0.05\%$.
+
+For active sampling ($\tau < 1$), $A_s \geq A_s^{\,\text{unif}}$ (items with large $|r_i|$ get oversampled, increasing $\sum r_i^2/q_s(i)$ relative to uniform). So $B_s/A_s \leq B_s/A_s^{\,\text{unif}} = \bar{r}^2/\overline{r^2}$ — the bound still holds.
 
 This gives the estimator for the noise floor:
 
@@ -126,7 +168,7 @@ The dominant original bias $\mathbb{E}[T_1]$ cancels exactly. The remaining term
 | Term | Sign | Magnitude | Effect on coverage |
 |:---|:---:|:---:|:---:|
 | $R_C = \frac{1}{n}\sum B_s w_s$ | $+$ | $\sim 10^{-8}$ | Conservative (overestimates $\bar\sigma^2$) |
-| $-\mathbb{E}[T_2]$ | $\pm$ | $O(\bar\sigma/N) \sim 10^{-6}$ | Negligible ($N \sim 12\text{k}$) |
+| $-\mathbb{E}[T_2]$ | $\pm$ | $O(\bar\sigma^2\ln n/N) \sim 10^{-7}$ | Negligible ($N \sim 12\text{k}$) |
 | $+\mathbb{E}[T_3]$ | $+$ | $O(1/n)$ | Conservative |
 
 All remaining terms push $\mathbb{E}[\hat{\sigma}^2_{\mathrm{cor}}] \geq \bar{\sigma}^2$: the corrected estimator is **slightly conservative**.

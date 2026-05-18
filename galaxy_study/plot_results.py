@@ -160,11 +160,12 @@ make_figure("ess_multiplier_vs_classical", "ess_multiplier_vs_classical_serr",
             method_config,
             "galaxy_study/figures/galaxy_ess+coverage_vs_classical.pdf")
 
-# Plot 3: WOR Active vs Cross-PPI vs Classical, ESS relative to Classical
+# Plot 3: WOR Active vs Active Inference vs Cross-PPI vs Classical, ESS relative to Classical
 method_config_main = [
-    ("wor-active",   "o", colors[0], "WOR Active (Ours)", True),
-    ("cross-ppi",    "x", colors[1], "Cross-PPI (Zrnic)", True),
-    ("classical",    "^", colors[2], "Classical",          False),
+    ("wor-active",        "o", colors[0], "WOR Active (Ours)",        True),
+    ("bernoulli-active",  "s", colors[3], "Active Inference (Zrnic)", True),
+    ("cross-ppi",         "P", colors[5], "Cross-PPI (Zrnic)",       True),
+    ("classical",         "^", colors[2], "Classical",                False),
 ]
 make_figure("ess_multiplier_vs_classical", "ess_multiplier_vs_classical_serr",
             method_config_main,
