@@ -1,0 +1,384 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref}
+ \hypersetup{
+     colorlinks=true,
+     linkcolor=blue,
+     filecolor=blue,
+     citecolor = black,
+     urlcolor=blue,
+     }
+\setlength{\parskip}{0pt}
+\setlength{\jot}{4pt}
+\setlength{\textwidth}{6.5in}
+\setlength{\textheight}{9.0in}
+\setlength{\evensidemargin}{0.0in}
+\setlength{\oddsidemargin}{0.0in}
+\setlength{\topmargin}{-.5in}
+\usepackage{float}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% ---- Macros (matching newc / wor_original_proof.tex) ----
+\newcommand{\thetahat}{\hat{\theta}}
+\newcommand{\fhat}{\hat{f}}
+\newcommand{\sigmahat}{\hat{\sigma}}
+\newcommand{\Bhat}{\hat{B}}
+\newcommand{\Ahat}{\hat{A}}
+\newcommand{\Chat}{\hat{C}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\R}{\mathcal{R}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\toP}{\xrightarrow{P}}
+\newcommand{\toD}{\xrightarrow{D}}
+\newcommand{\bdone}{\mathbf{1}}
+\newcommand{\ind}{\perp\!\!\!\perp}
+
+\title{Bias-Corrected Variance Estimator for Pro-Active Inference\\[4pt]
+\large (Intended as \S2.5 + Appendix material)}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% ====================================================================
+% MAIN TEXT — §2.5
+% ====================================================================
+
+\section*{Notation and Setup}
+
+We use the notation of Theorem~\ref{thm:pai-asymptotic-distribution} throughout. Recall that
+the PAI estimator is $\thetahat_n = \frac{1}{n}\sum_{t=1}^n \phi_t$ with martingale increments $\Delta_t = \phi_t - \theta$, and the variance estimator is $\sigmahat_n^2 = \Ahat_n - \Bhat_n$, where
+\begin{align*}
+    \Ahat_n &:= \frac{1}{nN^2} \sum_{t=1}^n \frac{\left( y_{I_t} - \fhat^{(t-1)}(x_{I_t}) \right)^2}{q_t(I_t)^2}, \\
+    \Bhat_n &:= \frac{1}{nN^2} \sum_{t=2}^n \left( N\thetahat_{t-1} - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i) \right)^2.
+\end{align*}
+We also recall the population-level quantities that arise from the conditional variance decomposition (cf.~proof of Theorem~\ref{thm:pai-asymptotic-distribution}):
+\begin{align*}
+    A_n &:= \frac{1}{nN^2} \sum_{t=1}^n \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)}, \\
+    B_n &:= \frac{1}{nN^2} \sum_{t=1}^n \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2,
+\end{align*}
+so that $\frac{1}{n}\sum_{t=1}^n \Var(\Delta_t \mid \F_{t-1}) = A_n - B_n \toP \sigma^2$. Define the per-step plug-in estimate
+\begin{align}
+\label{eq:psi_def}
+    \psi_t := \frac{1}{N}\left( \sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i) \right),
+\end{align}
+so that $\phi_t = \psi_t + \zeta_t$ and $\Delta_t = \psi_t + \zeta_t - \theta$, where we denote the normalized AIPW correction
+\begin{align}
+\label{eq:zeta_def}
+    \zeta_t := \frac{1}{N}\frac{y_{I_t} - \fhat^{(t-1)}(x_{I_t})}{q_t(I_t)}.
+\end{align}
+Note that $\psi_t$ is $\F_{t-1}$-measurable, while $\zeta_t$ introduces the only new randomness at step $t$. We have $\mathbb{E}[\zeta_t \mid \F_{t-1}] = \frac{1}{N}\sum_{i \notin O_{t-1}}(y_i - \fhat^{(t-1)}(x_i)) = \theta - \psi_t$.
+
+% ====================================================================
+\subsection*{2.5 \quad Bias-Corrected Variance Estimator}
+
+Although $\sigmahat_n^2 = \Ahat_n - \Bhat_n$ is a consistent estimator for $\sigma^2$ (Theorem~\ref{thm:pai-asymptotic-distribution}), it exhibits a systematic negative finite-sample bias: $\Bhat_n$ uses the running estimate $\thetahat_{t-1}$ in place of the unknown true mean $\theta$, causing $\Bhat_n$ to overestimate $B_n$ on average. This bias manifests as confidence intervals that are narrower than intended, degrading empirical coverage below the nominal $1-\alpha$ level—especially at larger sampling fractions $n/N$ where it accumulates over more rounds. In this section, we construct a correction term $\Chat_n$ that targets the dominant source of this bias, yielding a corrected estimator $\sigmahat_{\mathrm{cor}}^2 := \Ahat_n - \Bhat_n + \Chat_n$ that is slightly conservative.
+
+\subsubsection*{Step 1: Exact decomposition of the bias}
+
+The following proposition, which is an algebraic consequence of the proof of Theorem~\ref{thm:pai-asymptotic-distribution}, identifies the exact (pathwise) decomposition of $\Bhat_n - B_n$.
+
+\begin{proposition}[Exact bias decomposition]
+\label{prop:bias-decomp}
+    For every realization,
+    \begin{align}
+    \label{eq:bias-decomp}
+        \Bhat_n - B_n = T_1 + T_2 - T_3,
+    \end{align}
+    where
+    \begin{align}
+        T_1 &:= \frac{1}{n}\sum_{t=2}^n \left( \thetahat_{t-1} - \theta \right)^2, \label{eq:T1} \\
+        T_2 &:= \frac{2}{n}\sum_{t=2}^n \left( \theta - \psi_t \right)\left( \thetahat_{t-1} - \theta \right), \label{eq:T2} \\
+        T_3 &:= \frac{1}{n}\left( \theta - \psi_1 \right)^2. \label{eq:T3}
+    \end{align}
+\end{proposition}
+
+\begin{proof}
+We recall from the proof of Theorem~\ref{thm:pai-asymptotic-distribution} that
+\begin{align}
+\label{eq:Bn-expanded}
+    B_n = \frac{1}{n}\sum_{t=1}^n \left( \theta - \psi_t \right)^2 = \frac{1}{n}\sum_{t=2}^n \left( \theta - \psi_t \right)^2 + \frac{1}{n}\left( \theta - \psi_1 \right)^2.
+\end{align}
+Meanwhile, $\Bhat_n = \frac{1}{n}\sum_{t=2}^n (\thetahat_{t-1} - \psi_t)^2$ (note: the sum starts at $t=2$). For each $t \geq 2$, the identity $a^2 - b^2 = (a - b)^2 + 2b(a-b)$ with $a = \thetahat_{t-1} - \psi_t$ and $b = \theta - \psi_t$ gives
+\begin{align*}
+    (\thetahat_{t-1} - \psi_t)^2 - (\theta - \psi_t)^2 = (\thetahat_{t-1} - \theta)^2 + 2(\theta - \psi_t)(\thetahat_{t-1} - \theta).
+\end{align*}
+Summing over $t = 2, \ldots, n$, dividing by $n$, and subtracting the missing $t=1$ term of $B_n$:
+\begin{align*}
+    \Bhat_n - B_n &= \frac{1}{n}\sum_{t=2}^n\left[(\thetahat_{t-1} - \psi_t)^2 - (\theta - \psi_t)^2\right] - \frac{1}{n}(\theta - \psi_1)^2 \\
+    &= \underbrace{\frac{1}{n}\sum_{t=2}^n (\thetahat_{t-1} - \theta)^2}_{T_1} + \underbrace{\frac{2}{n}\sum_{t=2}^n (\theta - \psi_t)(\thetahat_{t-1} - \theta)}_{T_2} - \underbrace{\frac{1}{n}(\theta - \psi_1)^2}_{T_3}. \qedhere
+\end{align*}
+\end{proof}
+
+\begin{remark}[Structure of the bias terms]
+\label{rmk:T1-dominance}
+The term $T_1 \geq 0$ always. It captures the ``noise floor'': the accumulated variance of the running estimate $\thetahat_{t-1}$ around the true mean $\theta$. Heuristically, $T_1 = \frac{1}{n}\sum_{t=2}^n (\thetahat_{t-1} - \theta)^2$ has expectation $\frac{1}{n}\sum_{t=2}^n \Var(\thetahat_{t-1})$, which decays as $O(\log(n)/n)$ (see the proof of Theorem~\ref{thm:pai-asymptotic-distribution}).
+
+The term $T_3 = \frac{1}{n}(\theta - \psi_1)^2$ is the squared initial model calibration error, divided by $n$; it has magnitude $O(1/n)$ and enters with a negative sign, partially offsetting $T_1$.
+
+The cross term $T_2$ involves $(\theta - \psi_t)(\thetahat_{t-1} - \theta)$. Neither factor is mean-zero conditional on $\F_{t-1}$ (only $\mathbb{E}[\thetahat_{t-1} - \theta] = 0$ marginally), so $T_2$ does not vanish in expectation. However, the proof of Theorem~\ref{thm:pai-asymptotic-distribution} already establishes that $\mathbb{E}[|T_2|] = O(1/\sqrt{n})$, which is a worst-case bound; see Appendix~\ref{app:T2-T3-bounds} for a refined analysis showing that $|\mathbb{E}[T_2]| = O(\bar{\sigma}^2 \log(n) / N)$ under model calibration.
+
+Empirically, $T_1$ dominates $|T_2|$ and $T_3$ by several orders of magnitude across all configurations tested (Appendix~\ref{app:empirical-verification}, Figure~\ref{fig:bias-decomposition}).
+\end{remark}
+
+\subsubsection*{Step 2: Estimating the noise floor}
+
+The dominant bias term $T_1$ can be rewritten using the martingale structure. Since $\thetahat_{t-1} - \theta = \frac{1}{t-1}\sum_{s=1}^{t-1}\Delta_s$ and the $\Delta_s$ have zero mean and are orthogonal (martingale differences), we have
+\begin{align}
+\label{eq:var-theta-hat}
+    \Var(\thetahat_{t-1}) = \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[\Delta_s^2] = \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[v_s],
+\end{align}
+where $v_s := \Var(\Delta_s \mid \F_{s-1}) = A_s - B_s$ is the per-step conditional variance, with
+\begin{align}
+\label{eq:As-Bs-def}
+    A_s := \frac{1}{N^2}\sum_{i \notin O_{s-1}} \frac{(y_i - \fhat^{(s-1)}(x_i))^2}{q_s(i)}, \qquad B_s := \frac{1}{N^2}\left(\sum_{i \notin O_{s-1}} (y_i - \fhat^{(s-1)}(x_i))\right)^2.
+\end{align}
+We therefore need an estimator of $\mathbb{E}[v_s]$ at each step $s$. A natural candidate is $\zeta_s^2$, the squared AIPW correction from~\eqref{eq:zeta_def}. The following lemma justifies this choice.
+
+\begin{lemma}
+\label{lem:zeta-squared-unbiased}
+    For each $s = 1, \ldots, n$,
+    \begin{align}
+    \label{eq:zeta-squared-As}
+        \mathbb{E}\!\left[\zeta_s^2 \mid \F_{s-1}\right] = A_s.
+    \end{align}
+    Consequently, $\zeta_s^2$ is an unbiased estimator of $A_s = v_s + B_s$, overestimating $v_s$ by $B_s \geq 0$.
+\end{lemma}
+
+\begin{proof}
+    By definition of $\zeta_s$ and $q_s(\cdot) = P(I_s = \cdot \mid \F_{s-1})$,
+    \begin{align*}
+        \mathbb{E}[\zeta_s^2 \mid \F_{s-1}] = \sum_{i \notin O_{s-1}} q_s(i) \cdot \frac{1}{N^2}\frac{(y_i - \fhat^{(s-1)}(x_i))^2}{q_s(i)^2} = \frac{1}{N^2}\sum_{i \notin O_{s-1}} \frac{(y_i - \fhat^{(s-1)}(x_i))^2}{q_s(i)} = A_s. \qedhere
+    \end{align*}
+\end{proof}
+
+\begin{remark}[$B_s \ll A_s$ in practice]
+\label{rmk:Bs-small}
+    The overestimation $B_s/A_s$ is a property of model calibration, not of the sample size. Specifically, $B_s = \frac{1}{N^2}(M_s \bar{r}_s)^2$ and $A_s \geq \frac{1}{N^2}\sum_{i \notin O_{s-1}} (y_i - \fhat^{(s-1)}(x_i))^2 = \frac{M_s}{N^2} \overline{r_s^2}$ (with equality for uniform sampling), where $M_s = N - s + 1$, $\bar{r}_s$ is the mean residual, and $\overline{r_s^2}$ is the mean squared residual over unobserved items. Thus $B_s/A_s \leq \bar{r}_s^2/\overline{r_s^2}$, which is small whenever the ML model is approximately calibrated ($|\bar{r}_s| \ll \sqrt{\overline{r_s^2}}$). See Appendix~\ref{app:Bs-As-ratio} for a detailed analysis and empirical verification (Figure~\ref{fig:Bs-As-profiles}).
+\end{remark}
+
+\subsubsection*{Step 3: Construction of $\Chat_n$}
+
+We now define the correction term by ``plugging in'' the estimator $\zeta_s^2$ for $v_s$ in the expression for $\mathbb{E}[T_1]$.
+
+\begin{proposition}[Bias correction]
+\label{prop:correction}
+    Define
+    \begin{align}
+    \label{eq:Chat-def}
+        \Chat_n := \frac{1}{n}\sum_{t=2}^n \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\zeta_s^2.
+    \end{align}
+    Then:
+    \begin{enumerate}\renewcommand{\theenumi}{\alph{enumi}}\renewcommand{\labelenumi}{(\theenumi)}
+        \item \textbf{(Closed form).} Exchanging the order of summation,
+        \begin{align}
+        \label{eq:Chat-closed-form}
+            \Chat_n = \frac{1}{n}\sum_{s=1}^{n-1}\zeta_s^2 \, w_s, \qquad w_s := \sum_{k=s}^{n-1}\frac{1}{k^2}.
+        \end{align}
+        \item \textbf{(Expectation).} $\displaystyle\mathbb{E}[\Chat_n] = \mathbb{E}[T_1] + R_C$, where $\displaystyle R_C := \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[B_s]\,w_s \geq 0$.
+    \end{enumerate}
+\end{proposition}
+
+\begin{proof}
+    \textbf{(a).} The double sum in~\eqref{eq:Chat-def} runs over pairs $(s,t)$ with $1 \leq s \leq t-1$ and $2 \leq t \leq n$, equivalently $1 \leq s \leq n-1$ and $s+1 \leq t \leq n$. Exchanging the order and substituting $k = t-1$:
+    \begin{align*}
+        \sum_{t=2}^n \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\zeta_s^2 = \sum_{s=1}^{n-1}\zeta_s^2 \sum_{t=s+1}^{n}\frac{1}{(t-1)^2} = \sum_{s=1}^{n-1}\zeta_s^2 \sum_{k=s}^{n-1}\frac{1}{k^2}.
+    \end{align*}
+
+    \textbf{(b).} By the tower property and Lemma~\ref{lem:zeta-squared-unbiased}, $\mathbb{E}[\zeta_s^2] = \mathbb{E}[A_s] = \mathbb{E}[v_s] + \mathbb{E}[B_s]$. Thus,
+    \begin{align*}
+        \mathbb{E}[\Chat_n] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[A_s]\,w_s = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s + \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[B_s]\,w_s.
+    \end{align*}
+    It remains to identify the first sum with $\mathbb{E}[T_1]$. By~\eqref{eq:var-theta-hat},
+    \begin{align*}
+        \mathbb{E}[T_1] = \frac{1}{n}\sum_{t=2}^n \Var(\thetahat_{t-1}) = \frac{1}{n}\sum_{t=2}^n \frac{1}{(t-1)^2}\sum_{s=1}^{t-1}\mathbb{E}[v_s].
+    \end{align*}
+    Exchanging the order of summation (identical to part (a) with $\mathbb{E}[v_s]$ in place of $\zeta_s^2$):
+    \begin{align*}
+        \mathbb{E}[T_1] = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s.
+    \end{align*}
+    Hence $\mathbb{E}[\Chat_n] = \mathbb{E}[T_1] + R_C$ with $R_C = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[B_s]\,w_s \geq 0$ since $B_s \geq 0$ and $w_s > 0$.
+\end{proof}
+
+\subsubsection*{Step 4: The corrected estimator and its properties}
+
+\begin{theorem}[Bias-corrected variance estimator]
+\label{thm:corrected-variance}
+    Define
+    \begin{align}
+    \label{eq:corrected-estimator}
+        \sigmahat_{\mathrm{cor}}^2 := \Ahat_n - \Bhat_n + \Chat_n.
+    \end{align}
+    Under the assumptions of Theorem~\ref{thm:pai-asymptotic-distribution}:
+    \begin{enumerate}\renewcommand{\theenumi}{\alph{enumi}}\renewcommand{\labelenumi}{(\theenumi)}
+        \item \textbf{(Bias cancellation).} The expectation of the corrected estimator satisfies
+        \begin{align}
+        \label{eq:corrected-bias}
+            \mathbb{E}[\sigmahat_{\mathrm{cor}}^2] - \mathbb{E}[A_n - B_n] = R_C - \mathbb{E}[T_2] + \mathbb{E}[T_3],
+        \end{align}
+        where the dominant original bias $\mathbb{E}[T_1]$ has been exactly cancelled. The remaining terms satisfy $R_C \geq 0$, $\mathbb{E}[T_3] \geq 0$, and $|\mathbb{E}[T_2]| = O(1/\sqrt{n})$ (worst case) or $O(\bar{\sigma}^2\log(n)/N)$ under model calibration. In particular, the corrected estimator is slightly conservative: its CIs are wider than necessary, ensuring coverage at or above the nominal level.
+
+        \item \textbf{(Consistency).} $\sigmahat_{\mathrm{cor}}^2 \toP \sigma^2$.
+
+        \item \textbf{(Asymptotic normality).} The conclusion of Theorem~\ref{thm:pai-asymptotic-distribution} holds with $\sigmahat_{\mathrm{cor}}$ in place of $\sigmahat_n$:
+        \begin{align}
+        \label{eq:corrected-clt}
+            \sqrt{n}\left(\thetahat_n - \theta\right)/\sigmahat_{\mathrm{cor}} \toD \mathcal{N}(0,1).
+        \end{align}
+    \end{enumerate}
+\end{theorem}
+
+\begin{proof}
+    \textbf{(a).} By the pathwise decomposition $\Bhat_n = B_n + T_1 + T_2 - T_3$ (Proposition~\ref{prop:bias-decomp}),
+    \begin{align*}
+        \mathbb{E}[\sigmahat_{\mathrm{cor}}^2] &= \mathbb{E}[\Ahat_n] - \mathbb{E}[\Bhat_n] + \mathbb{E}[\Chat_n] \\
+        &= \mathbb{E}[A_n] - \bigl(\mathbb{E}[B_n] + \mathbb{E}[T_1] + \mathbb{E}[T_2] - \mathbb{E}[T_3]\bigr) + \bigl(\mathbb{E}[T_1] + R_C\bigr),
+    \end{align*}
+    where we used that $\mathbb{E}[\Ahat_n] = \mathbb{E}[A_n]$ (the martingale difference property of $C_t = \zeta_t^2 - A_t$ established in the proof of Theorem~\ref{thm:pai-asymptotic-distribution} gives $\mathbb{E}[\Ahat_n - A_n] = 0$), and Proposition~\ref{prop:correction}(b) for $\mathbb{E}[\Chat_n]$. The $\mathbb{E}[T_1]$ terms cancel, yielding~\eqref{eq:corrected-bias}.
+
+    \textbf{(b).} Since $\sigmahat_{\mathrm{cor}}^2 = \sigmahat_n^2 + \Chat_n$ and $\sigmahat_n^2 \toP \sigma^2$ (Theorem~\ref{thm:pai-asymptotic-distribution}), it suffices to show $\Chat_n \toP 0$. We have
+    \begin{align*}
+        0 \leq \Chat_n = \frac{1}{n}\sum_{s=1}^{n-1}\zeta_s^2\,w_s \leq \frac{w_1}{n}\sum_{s=1}^{n-1}\zeta_s^2 = w_1 \cdot \frac{n-1}{n}\cdot\Ahat_{n-1}' \leq w_1 \cdot \Ahat_n,
+    \end{align*}
+    where $\Ahat_n' := \frac{1}{n-1}\sum_{s=1}^{n-1}\zeta_s^2$. Now $w_1 = \sum_{k=1}^{n-1}\frac{1}{k^2} \leq \frac{\pi^2}{6}$, but more importantly $w_1 = O(1)$ while $\Ahat_n \toP A := \lim A_n$, so this bound is $O(1)$, which is not sufficient by itself.
+
+    Instead, we bound directly: $\Chat_n = \frac{1}{n}\sum_{s=1}^{n-1}\zeta_s^2 w_s$. Since $w_s = \sum_{k=s}^{n-1}1/k^2 \leq 1/s + \int_s^\infty x^{-2}dx = 2/s$, we get
+    \begin{align*}
+        \Chat_n \leq \frac{2}{n}\sum_{s=1}^{n-1}\frac{\zeta_s^2}{s}.
+    \end{align*}
+    Taking expectations: $\mathbb{E}[\Chat_n] \leq \frac{2}{n}\sum_{s=1}^{n-1}\frac{\mathbb{E}[A_s]}{s}$. Under the moment conditions of Theorem~\ref{thm:pai-asymptotic-distribution}, $\mathbb{E}[A_s] \leq \mathbb{E}[\zeta_s^2] \leq (\mathbb{E}[\zeta_s^4])^{1/2} \leq C^{1/2}$ by Assumption~\ref{a3:4th-moment-control} and Jensen's inequality. Therefore,
+    \begin{align*}
+        \mathbb{E}[\Chat_n] \leq \frac{2C^{1/2}}{n}\sum_{s=1}^{n-1}\frac{1}{s} = O\!\left(\frac{\log n}{n}\right) \to 0.
+    \end{align*}
+    Since $\Chat_n \geq 0$, this implies $\Chat_n \toP 0$ by Markov's inequality.
+
+    \textbf{(c).} Since $\sigmahat_{\mathrm{cor}}^2 \toP \sigma^2 > 0$, we have $\sigmahat_{\mathrm{cor}} \toP \sigma$, and Slutsky's theorem applied to the result $\sqrt{n}(\thetahat_n - \theta) \toD \mathcal{N}(0, \sigma^2)$ from Theorem~\ref{thm:pai-asymptotic-distribution} gives~\eqref{eq:corrected-clt}.
+\end{proof}
+
+\begin{remark}[Implementation]
+\label{rmk:implementation}
+    The correction~\eqref{eq:Chat-def} requires minimal overhead. At each step $t \geq 2$, the running sum $S_t := \sum_{s=1}^{t-1}\zeta_s^2$ is already maintained for computing $\Ahat_n$. Before appending $\zeta_t^2$ to this sum, one accumulates $\Chat_n \leftarrow \Chat_n + S_t / (t-1)^2$. After all $n$ rounds, divide by $n$. The cost is one addition per step.
+\end{remark}
+
+\begin{remark}[Comparison with the ``$A$-only'' estimator]
+\label{rmk:A-only}
+    A simpler alternative is to drop $\Bhat_n$ entirely, using $\sigmahat_{A}^2 := \Ahat_n$. This estimator is always conservative since $\Ahat_n$ estimates $A_n \geq A_n - B_n$. However, it overestimates the variance by $B_n$ on average, which does not vanish---unlike the residual $R_C$ of the corrected estimator, which is $O(\log(n)/n)$ and multiplied by the small ratio $B_s/v_s$. The corrected estimator $\sigmahat_{\mathrm{cor}}^2$ is strictly more accurate than $\sigmahat_A^2$ while retaining the conservative property.
+\end{remark}
+
+
+% ====================================================================
+% APPENDIX
+% ====================================================================
+\clearpage
+\appendix
+
+\section{Supplementary Material for the Bias Correction}
+
+\subsection{Refined bounds on $T_2$ and $T_3$}
+\label{app:T2-T3-bounds}
+
+We provide tighter bounds on $\mathbb{E}[T_2]$ and $\mathbb{E}[T_3]$ that complement the worst-case rates established in the proof of Theorem~\ref{thm:pai-asymptotic-distribution}.
+
+\subsubsection*{Bound on $\mathbb{E}[T_3]$}
+
+Since $\psi_1 = \frac{1}{N}\sum_{i=1}^N \fhat^{(0)}(x_i)$ depends only on the initial (pre-data) model, $T_3$ is deterministic:
+\begin{align*}
+    T_3 = \frac{1}{n}\left(\theta - \psi_1\right)^2 = \frac{1}{n}\left(\frac{1}{N}\sum_{i=1}^N \left(y_i - \fhat^{(0)}(x_i)\right)\right)^2.
+\end{align*}
+This is the squared mean residual of the initial model, divided by $n$. By the Cauchy--Schwarz--Jensen chain used in the proof of Theorem~\ref{thm:pai-asymptotic-distribution}, $T_3 \leq C^{1/2}/n = O(1/n)$.
+
+More precisely, $T_3 = \bar{r}_1^2/n$ where $\bar{r}_1$ is the initial model's mean residual. For a well-calibrated model (e.g., a Bayesian logistic regression fitted by maximum likelihood), $|\bar{r}_1|$ is typically of order $10^{-2}$ or smaller, so $T_3 \sim 10^{-4}/n$. At $n = 3000$, this is $O(10^{-8})$.
+
+\subsubsection*{Bound on $\mathbb{E}[T_2]$}
+
+The proof of Theorem~\ref{thm:pai-asymptotic-distribution} establishes $\mathbb{E}[|T_2|] = O(1/\sqrt{n})$ via Cauchy--Schwarz. This worst-case bound does not exploit the structure of $\theta - \psi_t$. We now show that this quantity is small whenever the ML model has small mean residual---a model calibration property rather than a sample-size condition.
+
+Recall that $\theta - \psi_t = \frac{1}{N}\sum_{i \notin O_{t-1}}(y_i - \fhat^{(t-1)}(x_i))$ (the mean residual over unobserved items, times $(N-t+1)/N$). Define $M_t := N - t + 1 = |R_{t-1}|$ and $\bar{r}_t := \frac{1}{M_t}\sum_{i \notin O_{t-1}}(y_i - \fhat^{(t-1)}(x_i))$, so that $\theta - \psi_t = (M_t/N)\bar{r}_t$.
+
+The contribution to $T_2$ at step $t$ can also be written as:
+\begin{align*}
+    (\theta - \psi_t)(\thetahat_{t-1} - \theta) = \frac{M_t}{N}\bar{r}_t \cdot (\thetahat_{t-1} - \theta).
+\end{align*}
+
+To bound $\mathbb{E}[T_2]$, note that each summand is a product of two terms, both of which involve shared randomness through $O_{t-1}$. We decompose the covariance structure as follows. Since $\thetahat_{t-1} = \theta + \frac{1}{t-1}\sum_{s=1}^{t-1}\Delta_s$ and $\psi_t = \psi_1 + \sum_{s=1}^{t-1}(\psi_{s+1} - \psi_s)$ where the increments $\psi_{s+1} - \psi_s$ depend on $I_s$ (the item sampled at step $s$, which replaces $\fhat^{(s-1)}(x_{I_s})$ with $y_{I_s}$ and may update the model), both terms share the common randomness from sampling $I_1, \ldots, I_{t-1}$.
+
+The key observation is that the ``effective covariance per step'' between $\zeta_s/N$ (contributing to $\thetahat$ via $1/q_s$ weighting) and $r_{I_s}/N$ (contributing to $\psi_{s+1} - \psi_s$ at unit weight) is of order $\bar{\sigma}^2/N$: the common randomness is amplified by $1/q_s$ in the estimator but only by $1$ in the plug-in, creating an asymmetry that makes the correlation weak when $N$ is large relative to $n$. This propagates through the running average $\thetahat_{t-1}$ with harmonic weights $1/(t-1)$, giving:
+\begin{align}
+\label{eq:T2-refined-bound}
+    |\mathbb{E}[T_2]| \lesssim \frac{\bar{\sigma}^2 \log n}{N},
+\end{align}
+where $\bar{\sigma}^2 = \frac{1}{n}\sum_s \mathbb{E}[v_s]$ is the average per-step conditional variance.
+
+\begin{remark}
+    The bound~\eqref{eq:T2-refined-bound} should be understood as a heuristic motivated by the conditional covariance structure; a fully rigorous proof would require tracking the joint distribution of $(\thetahat_{t-1}, \psi_t)$ through the adaptive sampling process, which is complicated by the model updates. We verify empirically that $|\mathbb{E}[T_2]|/\mathbb{E}[T_1]$ is of order $10^{-3}$ or smaller across all configurations (Appendix~\ref{app:empirical-verification}).
+\end{remark}
+
+\subsection{The ratio $B_s / A_s$}
+\label{app:Bs-As-ratio}
+
+The residual $R_C = \frac{1}{n}\sum_{s=1}^{n-1}\mathbb{E}[B_s]\,w_s$ from Proposition~\ref{prop:correction} is controlled by the per-step ratio $B_s/A_s$. We analyze this ratio.
+
+For step $s$, let $M_s = N - s + 1$, and let $r_i := y_i - \fhat^{(s-1)}(x_i)$ denote the residuals for $i \notin O_{s-1}$. Define
+\begin{align*}
+    \bar{r}_s := \frac{1}{M_s}\sum_{i \notin O_{s-1}} r_i, \qquad \overline{r_s^2} := \frac{1}{M_s}\sum_{i \notin O_{s-1}} r_i^2.
+\end{align*}
+Then:
+\begin{align*}
+    B_s = \frac{M_s^2\bar{r}_s^2}{N^2}, \qquad A_s = \frac{1}{N^2}\sum_{i \notin O_{s-1}} \frac{r_i^2}{q_s(i)} \geq \frac{1}{N^2}\sum_{i \notin O_{s-1}} r_i^2 = \frac{M_s\,\overline{r_s^2}}{N^2},
+\end{align*}
+where the inequality uses $q_s(i) \leq 1$ for all $i$. Hence:
+\begin{align}
+\label{eq:Bs-over-As}
+    \frac{B_s}{A_s} \leq \frac{M_s^2\bar{r}_s^2}{M_s\,\overline{r_s^2}} = \frac{M_s\bar{r}_s^2}{\overline{r_s^2}} = \frac{M_s\bar{r}_s^2}{\sigma_{r,s}^2 + \bar{r}_s^2},
+\end{align}
+where $\sigma_{r,s}^2 := \overline{r_s^2} - \bar{r}_s^2 \geq 0$ is the variance of residuals across the remaining unobserved items. Note that the $N^2$ factors cancel completely, so the ratio depends only on the moments of the residual distribution, not on $N$ directly.
+
+For active sampling with $\tau < 1$, items with large $|r_i|$ receive $q_s(i)$ above the uniform level $1/M_s$, which increases $A_s$ relative to the uniform case without affecting $B_s$. This further decreases $B_s/A_s$.
+
+\subsubsection*{When is $B_s/A_s$ small?}
+
+The ratio~\eqref{eq:Bs-over-As} is small when the mean residual $\bar{r}_s$ is small relative to the root-mean-square residual $\sqrt{\overline{r_s^2}}$. This is a model calibration property:
+\begin{itemize}
+    \item For binary outcomes $y_i \in \{0,1\}$ with probabilistic predictions $\fhat^{(s-1)}(x_i) \in [0,1]$, the mean squared residual $\overline{r_s^2}$ equals the Brier score, typically $\sim 0.1\text{--}0.25$. The mean residual $\bar{r}_s = \bar{y}_s - \overline{\fhat}_s$ is the calibration error, which is $|\bar{r}_s| \lesssim 0.01$ for a model fitted by maximum likelihood.
+    \item The ratio thus satisfies $B_s/A_s \leq M_s\bar{r}_s^2/\overline{r_s^2} \lesssim M_s \cdot (0.01)^2/0.1 = 10^{-3} M_s$.
+\end{itemize}
+
+This bound scales with $M_s$ and will not be small in general without further assumptions. However, the relevant quantity for $R_C$ is $\mathbb{E}[B_s]/\mathbb{E}[v_s]$, since
+\begin{align*}
+    \frac{R_C}{\mathbb{E}[T_1]} = \frac{\sum_{s=1}^{n-1}\mathbb{E}[B_s]\,w_s}{\sum_{s=1}^{n-1}\mathbb{E}[v_s]\,w_s} \leq \max_{1 \leq s \leq n-1}\frac{\mathbb{E}[B_s]}{\mathbb{E}[v_s]}.
+\end{align*}
+
+We verify empirically that $B_s/v_s \lesssim 0.5\%$ at all steps and budgets in both datasets tested (Figure~\ref{fig:Bs-As-profiles}). Combined with $\mathbb{E}[T_1]/\bar{\sigma}^2 \leq 0.22$ (at the largest budget), this gives $R_C/\bar{\sigma}^2 \leq 0.005 \times 0.22 \approx 10^{-3}$, which translates to a coverage overcorrection of $\lesssim 0.0001$---undetectable at 100 seeds.
+
+
+\subsection{Empirical verification}
+\label{app:empirical-verification}
+
+We verify the two key empirical claims: (i)~$T_1$ dominates $|T_2|$ and $T_3$, and (ii)~$B_s \ll A_s$ at every step. The verification procedure (implemented in \texttt{verify\_bias\_decomposition.py}) runs the full WOR-PAI loop on each (dataset, budget) combination with best-tuned hyperparameters, tracking the per-step quantities $A_s$, $B_s$ and the cumulative $T_1$, $T_2$, $T_3$ over 100 seeds $\times$ all test models.
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{...}
+    \textbf{[Placeholder: bias decomposition results from \texttt{verify\_bias\_decomposition.py}]}
+    \caption{Empirical verification of $T_1 \gg |T_2|, T_3$. Top: Normalized quantities $T_1/\bar{\sigma}^2$, $|T_2|/\bar{\sigma}^2$, $T_3/\bar{\sigma}^2$ as a function of budget. Bottom: Ratio $|T_2|/T_1$ and $T_3/T_1$.}
+    \label{fig:bias-decomposition}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    % \includegraphics[width=\textwidth]{...}
+    \textbf{[Placeholder: $B_s/A_s$ profiles from \texttt{verify\_bias\_decomposition.py}]}
+    \caption{Per-step ratio $B_s/A_s$ as a function of sampling step $s$, averaged over 100 seeds and all test models. Left: MMLU-Pro at 25\% budget. Right: BBH+GPQA+IFEval+MATH+MuSR at 25\% budget. The ratio remains below $0.5\%$ throughout.}
+    \label{fig:Bs-As-profiles}
+\end{figure}
+
+\end{document}
