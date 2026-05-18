@@ -6,7 +6,7 @@
 #SBATCH --mem=32G
 # Uncomment and set your account (check with: sacctmgr show associations user=$USER)
 ##SBATCH -A candes
-#SBATCH --time=08:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=logs/slurm_verify_bias_%A_%a.out
 #SBATCH --error=logs/slurm_verify_bias_%A_%a.err
 #SBATCH --array=0-19

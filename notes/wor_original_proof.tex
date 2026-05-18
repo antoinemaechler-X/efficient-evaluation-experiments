@@ -1,0 +1,345 @@
+\documentclass[11pt]{article}
+\usepackage[dvips]{color}
+\usepackage{color,soul}
+\usepackage{epsf}
+\usepackage{natbib}
+\bibliographystyle{abbrvnat}
+\usepackage{graphicx}
+\usepackage{palatino}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{nicefrac}
+\usepackage{hyperref}
+ \hypersetup{
+     colorlinks=true,
+     linkcolor=blue,
+     filecolor=blue,
+     citecolor = black,      
+     urlcolor=blue,
+     }
+\usepackage{makecell}
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\setlength{\parskip}{0pt}
+\setlength{\jot}{4pt}
+\setlength{\textwidth}{6.5in}
+\setlength{\textheight}{9.0in}
+\setlength{\evensidemargin}{0.0in}
+\setlength{\oddsidemargin}{0.0in}
+\setlength{\topmargin}{-.5in}
+\input{newc}
+\usepackage{float}
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable}
+\usepackage{listings} % For code listings
+\usepackage{color} % For coloring text
+\usepackage{booktabs}
+\usepackage{adjustbox}
+\newtheorem{theorem}{Theorem}
+\newtheorem{assumption}[theorem]{Assumption}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+ \newcommand{\ind}{\perp\!\!\!\perp} 
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+\usepackage{enumitem}
+
+%\usepackage{titlesec}
+%\titleformat{\subsection}
+%  {\normalfont\small\bfseries}  % <- change \small to %\footnotesize, etc.
+%  {\thesubsection}{0.2em}{}
+%\titleformat{\subsubsection}
+%  {\normalfont\footnotesize\bfseries}
+%  {\thesubsubsection}{0.2em}{}
+
+% Global: no extra vertical spacing in lists
+%\setlist{nosep}
+
+% If you want to be extra strict (also removes space before/after the list)
+%\setlist{topsep=0pt, partopsep=0pt, parsep=0pt, itemsep=0pt}
+%\setlength{\parindent}{0.2em}
+
+\title{Pro-Active Inference}
+\author{Skyler Wu$^*$, Antoine Maechler$^*$, Yash Nair, Emmanuel J. Candès}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Abstract}
+
+\section{Introduction}
+
+FAQ/PAI introduced PAI, but it is buried a bunch of other stuff. We take this opportunity to bring it to the forefront. Unlike active which does lable/skip, we can look backwards and take advantage of all the covariates, etc. and give guys multiple chances to be selected. We wanted to put it out there, that it'll be lost in the LLM evaluation stuff. Also, Zrnic's number of ML model function evaluations MUCH FASTER, and thus runtime MUCH SLOWER THAN PAI because need to for-loop over N vs. n, and need to compute normalizing expectation over all indices.
+
+In active, your goal is to estimate a superpopulation estimand. We can do that too. We first estimate the finite-population estimand, then use xbar to get to mu.
+
+the question is do we get shorter intervals.
+
+active bad because you can skip skip label and then skip very informative questions. and u can't go back. also if ur og ML model bad, u could miss informative points once and for all.
+
+the paper that we should've written
+
+look into theory results on active vs. pro-active. provably doing better. think rao-blackwell.
+
+Give emmanuel half a page of the 2-3 main results for this paper.
+
+\subsection{Related Work}
+
+\section{Method: Pro-Active Inference}
+
+\subsection{Finite-Population Problem Formulation and Notation}
+
+Suppose our data is comprised of pairs $\{ (x_i, y_i) \}_{i=1}^N$, viewed for now as a fixed finite population. We have access to all of the covariates $x_i$, but do not have access to any of the labels $y_i$. Our estimand of interest is the finite population mean:
+\begin{align}
+    \theta := \frac{1}{N} \sum_{i=1}^N y_i.
+\end{align}
+Given a fixed labeling budget $n$, the problem is: how should we adaptively select which $n$ labels to query so as to construct a valid confidence interval (CI) for $\theta$ that is as narrow as possible?
+
+At each labeling round $t = 1, \dots, n$, we sample a label index $I_t \in [1:N] := \mathcal{I}$ from an adaptive distribution $q_t(\cdot)$. Let $\F_{t-1} := \sigma\left( \{ I_s, y_{I_s}\}_{s=1}^{t-1} \right)$ and let $O_{t-1} \subseteq \mathcal{I}$ be the set of label indices we have observed up to and including round $t-1$, initialized at $O_0 = \emptyset$. Because we wish to sample without replacement, at each round $t$, $q_t(\cdot)$ conditional on $\F_{t-1}$ is a probability distribution over $\mathcal{I} \setminus O_{t-1}$. Finally, let $\hat{f}^{(t-1)} \in m\F_{t-1}$ denote a potentially-black-box machine learning (ML) model intended so that $\hat{f}^{(t-1)}(x) \approx y$, though we make no assumptions on the fidelity or well-specification of $\hat{f}^{(t-1)}$. The superscript $(t-1)$ indicates that after observing each newly-queried label, we may update our ML model accordingly. We will present examples of empirically high-performing combinations of $q_t(\cdot)$ and $\hat{f}^{(t-1)}$ in our subsequent case studies.
+
+\subsection{Pro-Active Inference Estimator for Finite-Population Estimands}
+
+We propose the following pro-active inference (PAI) estimator after adaptively collecting $n$ labels without replacement:
+\begin{align}
+    \thetahat_{n} := \frac{1}{n}\sum_{t=1}^n \phi_t, \quad \phi_t := \frac{1}{N}\left( \sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_{i}) \right) + \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)}.
+\end{align}
+Intuitively, the first term in $\phi_t$ represents our plug-in estimate for $\theta$---using the labels that we do have and imputing ML predictions for the remaining unobserved labels---while the second term serves as a bias correction. In Theorem \ref{thm:pai-asymptotic-distribution}, we show that $\thetahat_n$ is unbiased for $\theta$ and derive its limiting distribution via a martingale central limit theorem under mild regularity conditions.
+
+\begin{theorem}
+\label{thm:pai-asymptotic-distribution}
+    Consider a triangular array of problems (indexed by $m$) such that $n_m \uparrow \infty$, $N_m \uparrow \infty$, and $n_m/N_m \to \rho \in [0, 1 - \epsilon]$ for some $\epsilon > 0$.\footnote{We require this last assumption, else sampling without replacement will not having meaningful asymptotics, as we will then collapse towards a census. For readability, we omit the subscripts $m$ henceforth.} For each $t$, suppose that (a) $\fhat^{(t-1)}(\cdot)$ and $q_t(\cdot)$ are $\F_{t-1}$-measurable, and that (b) conditional on $\F_{t-1}$, $q_t(\cdot)$ is a probability distribution on $R_{t-1} := \mathcal{I} \setminus O_{t-1}$ with $q_t(i) \geq \tau / |R_{t-1}| = \tau / (N - t + 1)$ for all $i \in \R_{t-1}$, for some fixed $\tau \in (0, 1]$. Define $\Delta_t := \phi_t - \theta$.
+
+    Then, (a) $\thetahat_n$ is unbiased for $\theta$ at every finite $n$; and (b) under mild regularity conditions (variance stabilization, Lindeberg, and uniform fourth-moment control for weighted residuals; Assumptions \ref{a1:variance_stabilization}-\ref{a3:4th-moment-control} in Appendix \ref{regularity-assumptions:pai-thm}), $\thetahat_n$ obeys the following limiting distribution:
+    \begin{align}
+        \sqrt{n}\left( \thetahat_n - \theta \right) / \sigmahat_{n} \toD \mathcal{N}\left( 0, 1\right),
+    \end{align}
+    where letting $\thetahat_{t-1} := \frac{1}{t-1} \sum_{s=1}^{t-1} \phi_s$,
+    \begin{align*}
+        \sigmahat_n^2 &:= \hat{A}_n - \Bhat_n\\
+        &:= \frac{1}{nN^2} \sum_{t=1}^n \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} - \frac{1}{nN^2} \sum_{t=2}^n \left( N\thetahat_{t-1} - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_i) \right)^2.
+    \end{align*}
+\end{theorem}
+
+\begin{proof}
+    Please see Appendix \ref{proof:pai-thm}.
+\end{proof}
+
+\subsection{Pro-Active Inference Estimator for Superpopulation Estimands}
+
+In the above subsection, we focused on the finite-population mean $\theta := N^{-1} \sum_{i=1}^n y_i$ as our estimand, treating the $\{ (x_i, y_i )\}_{i=1}^N$ as a fixed finite population. Now, for this subsection, define $\theta_N := N^{-1} \sum_{i=1}^n y_i$
+
+\subsection{Theoretical Guarantees of Pro-Active Inference over Sequential Active Inference}
+
+\cite{zrnic2024active}'s active inference estimator in the finite-bank setting is as follows:
+\begin{align*}
+    \thetahat_{\text{active}} := \frac{1}{N} \sum_{t=1}^N \Delta_t, \quad \Delta_t = f_t(x_t) + \left( y_t - f_t(x_t) \right) \frac{\xi_t}{\pi_t(x_t)},
+\end{align*}
+where the variance of $\thetahat_{\text{active}}$ can be consistently estimated, under regularity conditions, via
+\begin{align*}
+    \hat{\Var}(\thetahat_{\text{active}}) = \frac{1}{N^2} \sum_{t=1}^N \xi_t \frac{1 - \pi_t(x_t)}{\pi_t(x_t)^2} \left( y_t - f_t(x_t)\right)^2.
+\end{align*}
+
+Intuitive ideas that I'd like to formalize:
+\begin{itemize}
+    \item Sequential active inference cannot revisit informative data points that it chose to skip over (n.b. exacerbated if the ML predictor and/or uncertainty score are miscalibrated, and/or if all the hard units are at the end): in contrast, PAI repeatedly samples over unqueried indices, so there are more chances to label the informative data points. And proactiveness allows PAI to label the informative data points earlier.
+    \begin{itemize}
+        \item PAI should outperform sequential active inference by large margins when there is a small subset of highly-informative units (i.e., that the ML model can't get right).
+    \end{itemize}
+    \item Proactive question selection coupled with active-learning policy allows PAI to quickly improve a poorly-initialized ML model compared to active inference.
+    \item The above two reasons are why PAI wins on low-budget performance, as every missed informative item hurts more.
+    \item Even if we fix the ML model $f$ for tractability and suppose we have oracle knowledge allowing us to set \cite{zrnic2024active}'s $\pi_t(x_t) \propto |y_t - f(x_t)|$ and our $q_t(I_t) \propto |y_{I_t} - f(x_{I_t})|$ (i.e., effectively analogous labeling/sampling policies), PAI should be able to win if informative points (i.e., ones where $|y_i - f(x_i)|$ is large). \textbf{Consult Emmanuel on how to formalize this!}
+    \begin{itemize}
+        \item The datasets where PAI would shine the most are ones where residuals are not homoskedastic (a la Antoine), but where there are a small set of units with \textit{very large (in magnitude) residuals}. If we define $r_i = y_i - f(x_i)$, a dataset favorable to PAI would be one where there exists some small set of large-residual units $I$ (i.e., $|I| \ll N$) where $\sum_{i \in I} r_i^2 / \sum_{i=1}^N r_i^2 \approx 1$. In addition, we need $q_t(i)$ \textit{to have a strong signal for $r_i$}.
+        \item In English, some examples would be our LLM evaluations (factor model can get $70-80$\% binary accuracy) where most questions are predictable, but a small subset has high errors, or datasets where a few demographic strata and/or borderline cases drive the most uncertainty and/or are poorly-predicted. Also, rare events/outcomes that drive the majority of error (PAI can target these rare outcomes better with larger $q_t$).
+        \item Tl;dr - PAI shines when there is (a) a small subset of ``hard units"; and (b) our $q_t(\cdot)$ can capture it well. This also means that we need our $q_t(\cdot)$ to be fairly spiky.
+    \end{itemize}
+\end{itemize}
+
+\newpage
+
+% ACS, binary classification via thresholding
+\section{Predicting Poverty Rates}
+
+% PISA 2022
+\section{Predicting Educational Outcomes}
+
+\bibliography{references}
+
+\clearpage
+\appendix
+
+\section{Proofs, Algorithms, and Other Formulas}
+
+\subsection{Regularity Assumptions for Theorem \ref{thm:pai-asymptotic-distribution}}
+\label{regularity-assumptions:pai-thm}
+
+We enumerate some mild regularity conditions for Theorem \ref{thm:pai-asymptotic-distribution}: Assumptions \ref{a1:variance_stabilization}-\ref{a2:lindeberg_condition} are standard conditions for martingale central limit theorems (c.f.~\citet[Corollary 3.2]{hall2014martingale}) while Assumption \ref{a3:4th-moment-control} is mild and used to facilitate consistency of our variance estimator.
+
+\begin{assumption}[Variance stabilization]
+\label{a1:variance_stabilization}
+    The average conditional variance converges in probability to a positive deterministic limit $\sigma^2$, which does not depend on $m$:
+    \begin{align*}
+        \frac{1}{n} \sum_{t=1}^{n} \Var\left( \Delta_t \mid \F_{t-1} \right) \toP \sigma^2.
+    \end{align*}
+\end{assumption}
+
+\begin{assumption}[Lindeberg condition]
+\label{a2:lindeberg_condition}
+    The triangular array of problem instances in conjunction with the sampling policies $q_t(\cdot)$ obey the Lindeberg condition. Specifically, for every $\epsilon > 0$,
+    \begin{align*}
+        \frac{1}{n} \sum_{t=1}^n \mathbb{E}\left[ \Delta^2_t \bdone\left( |\Delta_t| > \epsilon \sqrt{n} \right) \mid \F_{t-1} \right] \toP 0.
+    \end{align*}
+\end{assumption}
+
+\begin{assumption}[Uniform fourth-moment control for weighted residuals]
+\label{a3:4th-moment-control}
+    There exists a deterministic constant $C < \infty$ such that
+    \begin{align*}
+        \sup_{m \geq 1} \sup_{1 \leq t \leq n_m} \mathbb{E}\left[ \left( \frac{1}{N} \frac{y_{I_t} - \fhat^{(t-1)}(x_{I_t})}{q_t(I_t)} \right)^4 \right] \leq C.
+    \end{align*}
+\end{assumption}
+
+\subsection{Proof of Theorem \ref{thm:pai-asymptotic-distribution}}
+\label{proof:pai-thm}
+
+\begin{proof}
+    We begin by showing that the $\Delta_t$ are martingale differences---that their cumulative sums form a martingale. By definition of $\F_{t-1}$ and $q_t(\cdot) := P(I_t = \cdot \mid \F_{t-1})$, with division by $q_t(\cdot)$ well-defined by assumption,
+    \begin{align*}
+        \mathbb{E}\left[ \Delta_t \mid \F_{t-1} \right] = \mathbb{E}\left[ \frac{1}{N}\left( \sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_{i}) \right) + \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} - \theta \mid \F_{t-1}\right]\\
+        = \frac{1}{N} \sum_{i \in O_{t-1}} y_i + \frac{1}{N}\left( \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_{i}) \right) + \mathbb{E}\left[\frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right] - \theta \\
+        = \frac{1}{N} \sum_{i \in O_{t-1}} y_i + \frac{1}{N}\left( \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_{i}) \right) + \frac{1}{N} \sum_{i \notin O_{t-1}} \left( \frac{y_i - \fhat^{(t-1)}(x_i)}{q_t(i)} \right) q_t(i) - \theta\\
+        = \frac{1}{N} \sum_{i \in \mathcal{I}} y_i - \theta = 0,
+    \end{align*}
+    which implies that $(\Delta_t, \F_t)$ is a martingale difference array. Now, it immediately follows that
+    \begin{align*}
+        \mathbb{E}\left[ \thetahat_n - \theta \right] = \mathbb{E}\left[ \frac{1}{n}\sum_{t=1}^n \phi_t - \theta \right] = \mathbb{E}\left[ \frac{1}{n}\sum_{t=1}^n \left( \phi_t - \theta \right) \right] = \mathbb{E}\left[ \frac{1}{n}\sum_{t=1}^n \Delta_t \right] = 0,
+    \end{align*}
+    implying that $\thetahat_n$ is unbiased for $\theta$ at every finite $n$. Now, by Assumptions \ref{a1:variance_stabilization}-\ref{a2:lindeberg_condition}, the martingale central limit theorem as presented in Corollary 3.2 of \cite{hall2014martingale} tells us that
+    \begin{align*}
+        \sqrt{n}\left( \thetahat_n - \theta \right) \toD \mathcal{N}\left( 0, \sigma^2 \right).
+    \end{align*}
+    To compute a consistent estimator for $\sigma^2$, we proceed by computing the martingale increment conditional variances. By definition of $\F_{t-1}$, we have
+    \begin{align*}
+        \Var\left( \Delta_t \mid \F_{t-1} \right)\\
+        = \Var\left( \frac{1}{N}\left( \sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_{i}) \right) + \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} - \theta \mid \F_{t-1} \right)\\
+        = \Var\left( \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right)\\ = \mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \right)^2 \mid \F_{t-1} \right] - \left(  \mathbb{E}\left[ \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right] \right)^2\\
+        = \frac{1}{N^2} \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} -  \frac{1}{N^2} \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2.
+        % = \frac{1}{N^2} \left( \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} - \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2 \right).
+    \end{align*}
+    By Assumption \ref{a1:variance_stabilization} and substitution, we know that
+    \begin{align*}
+        \frac{1}{n} \sum_{t=1}^n \left( \frac{1}{N^2} \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} -  \frac{1}{N^2} \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2 \right) \\
+        = \frac{1}{n N^2} \sum_{t=1}^n \left( \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right) - \frac{1}{n N^2} \sum_{t=1}^n \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2\\
+        := A_n - B_n \toP \sigma^2.
+    \end{align*}
+    To show that $\sigmahat_n^2 \toP \sigma^2$, it suffices to show that (a) $\hat{A}_n - A_n = o_p(1)$ and (b) $\hat{B}_n - B_n = o_p(1)$. Beginning with the first statement,
+    \begin{align*}
+        \hat{A}_n - A_n = \frac{1}{nN^2} \sum_{t=1}^n \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} - \frac{1}{n N^2} \sum_{t=1}^n \left( \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right)\\
+        = \frac{1}{n} \sum_{t=1}^n \frac{1}{N^2}\left( \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} - \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right) := \frac{1}{n} \sum_{t=1}^n C_t. 
+    \end{align*}
+    Because we have
+    \begin{align*}
+        \mathbb{E}[C_t \mid \F_{t-1}] = \mathbb{E}\left[ \frac{1}{N^2}\left( \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} - \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right) \mid \F_{t-1} \right]\\
+        = \mathbb{E}\left[ \frac{1}{N^2}\left( \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} \right) \mid \F_{t-1} \right] - \frac{1}{N^2} \left( \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right)\\
+        = \sum_{i \notin O_{t-1}} \frac{1}{N^2}\left( \frac{\left( y_{i} - \hat{f}^{(t-1)}\left( x_{i} \right) \right)^2}{q_t(i)^2} \right) q_t(i) - \frac{1}{N^2} \left( \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)} \right) = 0,
+    \end{align*}
+    we can deduce that $(C_t, \F_t)$ is a martingale difference array. By orthogonality of martingale increments (i.e., tower property), we further find that
+    \begin{align*}
+        \mathbb{E}\left[ \left( \hat{A}_n - A_n \right)^2 \right] = \mathbb{E}\left[ \left( \frac{1}{n} \sum_{t=1}^n C_t \right)^2 \right] = \frac{1}{n^2} \sum_{t=1}^n \mathbb{E}\left[ C_t^2 \right].
+    \end{align*}
+    Now, because $(a-b)^2 \leq 2a^2 + 2b^2$,
+    \begin{align*}
+        \mathbb{E}\left[ C_t^2 \right] \leq \mathbb{E}\left[ 2 \left( \frac{1}{N^2} \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)^2}{q_t(I_t)^2} \right)^2 + 2 \left( \frac{1}{N^2} \sum_{i \notin O_{t-1}} \frac{\left( y_i - \fhat^{(t-1)}(x_i) \right)^2}{q_t(i)}\right)^2\right]\\
+        = 2 \mathbb{E}\left[ \left( \frac{1}{N} \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)}{q_t(I_t)} \right)^4\right] + 2 \mathbb{E}\left[ \left( \mathbb{E}\left[ \frac{1}{N^2} \frac{\left( y_{I_t} - \fhat^{(t-1)}(x_{I_t}) \right)^2}{q_t({I_t})^2} \mid \F_{t-1} \right]\right)^2 \right]\\
+        = 2 \mathbb{E}\left[ \left( \frac{1}{N} \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)}{q_t(I_t)} \right)^4\right] + 2 \mathbb{E}\left[ \mathbb{E}\left[ \left( \frac{1}{N} \frac{\left( y_{I_t} - \fhat^{(t-1)}(x_{I_t}) \right)}{q_t({I_t})} \right)^4 \mid \F_{t-1} \right] \right]\\
+        = 4 \mathbb{E}\left[ \left( \frac{1}{N} \frac{\left( y_{I_t} - \hat{f}^{(t-1)}\left( x_{I_t} \right) \right)}{q_t(I_t)} \right)^4\right] \leq 4C,
+    \end{align*}
+    with the last step by Assumption \ref{a3:4th-moment-control}. As such, we deduce that $\mathbb{E}\left[ \left( \hat{A}_n - A_n \right)^2 \right] \to 0$, which implies that $\hat{A}_n - A_n = o_p(1)$. Working on the second term, we first observe that
+    \begin{align*}
+        B_n = \frac{1}{n N^2} \sum_{t=1}^n \left( \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right) \right)^2 = \frac{1}{n N^2} \sum_{t=1}^n \left( N\theta - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)  \right)^2\\
+        = \frac{1}{n N^2} \sum_{t=2}^n \left( N\theta - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)  \right)^2 + \frac{1}{nN^2} \left( N\theta - \sum_{i=1}^N \fhat^{(t-1)}(x_i) \right)^2.
+    \end{align*}
+    With this alternative form, and using the equality that $a^2 - b^2 = (a - b)^2 + 2b(a-b)$ to combine similar terms, we have the following:
+    \begin{align*}
+        \Bhat_n - B_n = \frac{1}{nN^2} \sum_{t=2}^n \left( N\thetahat_{t-1} - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_i) \right)^2\\ - \frac{1}{n N^2} \sum_{t=2}^n \left( N\theta - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)  \right)^2 - \frac{1}{nN^2} \left( N\theta - \sum_{i=1}^N \fhat^{(0)}(x_i) \right)^2\\
+        = \frac{1}{nN^2} \sum_{t=2}^n \left[ \left( N\thetahat_{t-1} - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \hat{f}^{(t-1)}(x_i) \right)^2 - \left( N\theta - \sum_{i \in O_{t-1}} y_i - \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)  \right)^2 \right]\\ - \frac{1}{nN^2} \left( N\theta - \sum_{i=1}^N \fhat^{(0)}(x_i) \right)^2\\
+        = \frac{1}{n} \sum_{t=2}^n \left( \thetahat_{t-1} - \theta \right)^2 + \frac{2}{n} \sum_{t=2}^n \left( \theta - \frac{\sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)}{N} \right) \left( \thetahat_{t-1} - \theta \right)\\ - \frac{1}{n} \left( \theta - \frac{\sum_{i=1}^N \fhat^{(0)}(x_i)}{N} \right)^2.
+    \end{align*}
+    Taking absolute values, we have
+    \begin{align*}
+        |\Bhat_n - B_n| \leq \underbrace{\frac{1}{n} \sum_{t=2}^n \left( \thetahat_{t-1} - \theta \right)^2}_{T_1} + \underbrace{\frac{2}{n} \sum_{t=2}^n \left| \theta - \frac{\sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)}{N} \right| \left| \thetahat_{t-1} - \theta \right|}_{T_2}\\ + \underbrace{\frac{1}{n} \left( \theta - \frac{\sum_{i=1}^N \fhat^{(0)}(x_i)}{N} \right)^2}_{T_3}.
+    \end{align*}
+    Working on $T_1$, we have the following because the $\Delta_s$ are martingale differences and by orthogonality of martingale increments:
+    \begin{align*}
+        \thetahat_{t-1} - \theta = \frac{1}{t-1} \sum_{s=1}^{t-1} \Delta_s \implies \mathbb{E}\left[ \left(  \thetahat_{t-1} - \theta \right)^2\right] = \frac{1}{(t-1)^2} \sum_{s=1}^{t-1} \mathbb{E}\left[ \Delta_s^2 \right].
+    \end{align*}
+    Now, by Jensen's Inequality, the fact that $(a - b)^2 \leq 2a^2 + 2b^2$, and the following fact:
+    \begin{align*}
+        \mathbb{E}\left[ \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right] = \frac{1}{N} \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right),
+    \end{align*}
+    we have the following, noting that $\theta - \frac{1}{N} \sum_{i \in O_{s-1}} y_i = \frac{1}{N} \sum_{i \notin O_{s-1}} y_i$:
+    \begin{align*}
+        \mathbb{E}\left[ \Delta_s^2 \right] = \mathbb{E}\left[ \left( \frac{1}{N}\left( \sum_{i \in O_{s-1}} y_i + \sum_{i \notin O_{s-1}} \hat{f}^{(s-1)}(x_{i}) \right) + \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} - \theta \right)^2 \right]\\
+        \leq 2\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^2 \right] + 2\mathbb{E}\left[ \left( \theta - \frac{1}{N}\left( \sum_{i \in O_{s-1}} y_i + \sum_{i \notin O_{s-1}} \hat{f}^{(s-1)}(x_{i}) \right) \right)^2 \right]\\
+        \leq 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right]\right)^{1/2} + 2\mathbb{E}\left[ \left( \frac{1}{N} \sum_{i \notin O_{s-1}} y_i - \frac{1}{N} \sum_{i \notin O_{s-1}} \hat{f}^{(s-1)}(x_{i}) \right)^2 \right]\\
+        = 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right]\right)^{1/2} + 2\mathbb{E}\left[ \left(  \mathbb{E}\left[ \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \mid \F_{s-1} \right] \right)^2 \right]\\
+        \leq 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right]\right)^{1/2} + 2\mathbb{E}\left[ \mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^2 \mid \F_{s-1} \right] \right]\\
+        \leq 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right]\right)^{1/2} + 2\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^2 \right]\\
+        \leq 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right]\right)^{1/2} + 2\left(\mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_s} - \hat{f}^{(s-1)}(x_{I_s})}{q_s(I_s)} \right)^4 \right] \right)^{1/2} \leq 4C^{1/2}.
+    \end{align*}
+    Thus, we conclude that
+    \begin{align*}
+        \mathbb{E}[T_1] = \frac{1}{n}\sum_{t=2}^n \mathbb{E}\left[ \left( \thetahat_{t-1} - \theta \right)^2 \right] = \frac{1}{n}\sum_{t=2}^n \frac{1}{(t-1)^2} \sum_{s=1}^{t-1} \mathbb{E}\left[ \Delta_s^2 \right] \leq \frac{1}{n}\sum_{t=2}^n \frac{4C^{1/2}}{t-1} = O\left( \frac{\log n}{n} \right).
+    \end{align*}
+    Moving on to $T_3$, we note that for any $t$, by definition of $\theta$,
+    \begin{align*}
+        \theta - \frac{1}{N} \sum_{i \in O_{t-1}} y_i - \frac{1}{N} \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i) = \frac{1}{N} \sum_{i \notin O_{t-1}} \left( y_i - \fhat^{(t-1)}(x_i) \right)\\ = \mathbb{E}\left[ \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right].
+    \end{align*}
+    By Jensen's inequality, we deduce that for any $t$,
+    \begin{align*}
+        \mathbb{E}\left[ \left( \theta - \frac{1}{N} \sum_{i \in O_{t-1}} y_i - \frac{1}{N} \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i) \right)^2 \right] = \mathbb{E}\left[ \left( \mathbb{E}\left[ \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \mid \F_{t-1} \right] \right)^2 \right]\\
+        \leq \mathbb{E}\left[ \mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \right)^2 \mid \F_{t-1} \right] \right] = \mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \right)^2 \right]\\ \leq \left( \mathbb{E}\left[ \left( \frac{1}{N}\frac{y_{I_t} - \hat{f}^{(t-1)}(x_{I_t})}{q_t(I_t)} \right)^4 \right] \right)^{1/2} \leq C^{1/2}.
+    \end{align*}
+    Thus, it also follows that, corresponding to $t=1$,
+    \begin{align*}
+        \mathbb{E}[T_3] = \mathbb{E}\left[ \frac{1}{n} \left( \theta - \frac{\sum_{i=1}^N \fhat^{(0)}(x_i)}{N} \right)^2 \right] \leq \frac{C^{1/2}}{n} = O\left( \frac{1}{n} \right).
+    \end{align*}
+    Now, working on $T_2$, by Cauchy-Schwarz, and using our above facts,
+    \begin{align*}
+        \mathbb{E}[T_2] = \frac{2}{n} \sum_{t=2}^n \mathbb{E}\left[ \left| \theta - \frac{\sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)}{N} \right| \left| \thetahat_{t-1} - \theta \right| \right]\\
+        \leq \frac{2}{n} \sum_{t=2}^n \mathbb{E}\left[ \left( \theta - \frac{\sum_{i \in O_{t-1}} y_i + \sum_{i \notin O_{t-1}} \fhat^{(t-1)}(x_i)}{N} \right)^2 \right]^{1/2} \mathbb{E}\left[ \left( \thetahat_{t-1} - \theta \right)^2 \right]^{1/2}\\
+        \leq \frac{2}{n}\sum_{t=2}^n \left( C^{1/2}\right)^{1/2}\left( \frac{4C^{1/2}}{t-1} \right)^{1/2} = \frac{4C^{1/2}}{n} \sum_{t=2}^n \frac{1}{\sqrt{t-1}} = O\left(  \frac{1}{\sqrt{n}} \right).
+    \end{align*}
+    Putting everything together, we deduce that
+    \begin{align*}
+        \mathbb{E}[|\Bhat_n - B_n|] \leq \mathbb{E}[T_1] + \mathbb{E}[T_2] + \mathbb{E}[T_3] = O\left( \frac{\log n}{n} \right) + O\left(  \frac{1}{\sqrt{n}} \right) + O\left( \frac{1}{n} \right) \to 0,
+    \end{align*}
+    which implies that $\Bhat_n \overset{L^1}{\to} B_n$, which implies $\Bhat_n - B_n = o_p(1)$. Thus, we conclude that $\sigmahat_n^2 \toP \sigma^2$, which by Slutsky's gives us our desired final result:
+    \begin{align*}
+        \sqrt{n}\left( \thetahat_n - \theta \right) / \sigmahat_{n} \toD \mathcal{N}\left( 0, 1\right).
+    \end{align*}
+\end{proof}
+
+\end{document}
