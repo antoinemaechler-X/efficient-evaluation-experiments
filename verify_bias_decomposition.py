@@ -251,15 +251,38 @@ def main():
     print(f"Hyperparameters: beta0={beta0}, rho={rho}, gamma={gamma}, tau={tau}")
     print(f"Running {args.n_seeds} seeds...")
 
-    # ---- Run trials ----
+    # ---- Prepare output files (incremental writes) ----
+    outdir = "logs/verify_bias"
+    os.makedirs(outdir, exist_ok=True)
+    tag = f"{args.dataset}_{args.budget}"
+    dec_path = f"{outdir}/decomposition_{tag}.csv"
+    prof_path = f"{outdir}/profiles_{tag}.csv"
+
+    # Check for existing partial results to resume from
+    start_seed = 0
     records = []
+    if os.path.exists(dec_path):
+        existing = pd.read_csv(dec_path)
+        if len(existing) > 0:
+            start_seed = int(existing['seed'].max()) + 1
+            records = existing.to_dict('records')
+            print(f"Resuming from seed {start_seed} ({len(existing)} seeds already done)")
+
     # Online accumulators for per-step profiles (mean across seeds)
     A_sum = np.zeros(N_B, dtype=np.float64)
     B_sum = np.zeros(N_B, dtype=np.float64)
     A_sumsq = np.zeros(N_B, dtype=np.float64)
     B_sumsq = np.zeros(N_B, dtype=np.float64)
 
-    for seed in tqdm(range(args.n_seeds), desc="seeds"):
+    # Write CSV header if starting fresh
+    dec_cols = ['seed', 'T1', 'T2', 'T3', 'Bhat_minus_Bn', 'sigma_bar_sq',
+                'T1_over_sigma', 'T2_over_sigma', 'T3_over_sigma']
+    if start_seed == 0:
+        with open(dec_path, 'w') as f:
+            f.write(','.join(dec_cols) + '\n')
+
+    for seed in tqdm(range(start_seed, args.n_seeds), desc="seeds",
+                     initial=start_seed, total=args.n_seeds):
         res = trial_decomposition(
             M2, V, MU0, SIGMA0,
             N_NEW, N_QUESTIONS, N_B,
@@ -273,7 +296,7 @@ def main():
             print(f"  WARNING seed={seed}: |sanity residual| = {residual:.2e} "
                   f"(Bhat-Bn={res['Bhat_minus_Bn']:.6e}, T1+T2-T3={check:.6e})")
 
-        records.append({
+        row = {
             'seed': seed,
             'T1': res['T1'],
             'T2': res['T2'],
@@ -283,20 +306,19 @@ def main():
             'T1_over_sigma': res['T1'] / max(res['sigma_bar_sq'], 1e-15),
             'T2_over_sigma': res['T2'] / max(res['sigma_bar_sq'], 1e-15),
             'T3_over_sigma': res['T3'] / max(res['sigma_bar_sq'], 1e-15),
-        })
+        }
+        records.append(row)
+
+        # Append this seed's result immediately
+        with open(dec_path, 'a') as f:
+            f.write(','.join(str(row[c]) for c in dec_cols) + '\n')
 
         A_sum += res['A_profile']
         B_sum += res['B_profile']
         A_sumsq += res['A_profile'] ** 2
         B_sumsq += res['B_profile'] ** 2
 
-    # ---- Save decomposition CSV ----
-    outdir = "logs/verify_bias"
-    os.makedirs(outdir, exist_ok=True)
-
     df = pd.DataFrame(records)
-    tag = f"{args.dataset}_{args.budget}"
-    df.to_csv(f"{outdir}/decomposition_{tag}.csv", index=False)
 
     # Print summary
     print(f"\n{'='*60}")
