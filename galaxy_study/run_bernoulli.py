@@ -101,12 +101,12 @@ def run_bernoulli_vectorized(Y_group, Yhat_group, budget_prop, rng_seed):
         # Point estimate: mean over items
         mu_hat = aipw_items.mean(dim=1, keepdim=True)  # (N_BATCH, 1)
 
-        # Variance: sample variance / N
-        var_hat = aipw_items.var(dim=1, keepdim=True) / N  # (N_BATCH, 1)
+        # Variance: population variance / N (ddof=0 to match Zrnic's np.var)
+        var_hat = aipw_items.var(dim=1, keepdim=True, correction=0) / N  # (N_BATCH, 1)
 
         se = torch.sqrt(var_hat.clamp(min=0))
-        ub = (mu_hat + z_score * se).clamp(max=1.0)
-        lb = (mu_hat - z_score * se).clamp(min=0.0)
+        ub = mu_hat + z_score * se
+        lb = mu_hat - z_score * se
 
         widths = (ub - lb).squeeze(1)  # (N_BATCH,)
         coverages = ((lb <= true_mean) & (true_mean <= ub)).squeeze(1).float()

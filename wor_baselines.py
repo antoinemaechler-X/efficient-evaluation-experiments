@@ -140,12 +140,12 @@ def trial_baseline_wor(M2, PHATS, N_NEW, N_QUESTIONS, N_B, policy, tau, seed, de
         v_T_sq_minus /= (N_B * (N_QUESTIONS ** 2))
         v_T_sq_full = (v_T_sq_simp - v_T_sq_minus).clamp(min=0)
 
-        ub = torch.maximum(
+        ub = torch.minimum(
             thetahats_T + z_score * torch.sqrt(v_T_sq_full / N_B),
-            torch.tensor(0.0, device=device))
-        lb = torch.minimum(
-            thetahats_T - z_score * torch.sqrt(v_T_sq_full / N_B),
             torch.tensor(1.0, device=device))
+        lb = torch.maximum(
+            thetahats_T - z_score * torch.sqrt(v_T_sq_full / N_B),
+            torch.tensor(0.0, device=device))
 
         mean_width = (ub - lb).mean().item()
         coverage = ((lb <= mus_M2) & (mus_M2 <= ub)).mean(dtype=float).item()

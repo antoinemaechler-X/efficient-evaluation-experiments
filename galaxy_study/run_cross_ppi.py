@@ -108,8 +108,8 @@ def run_cross_ppi(Y_group, Yhat_group, budget_prop, rng_seed):
         var_residual = np.var(Y_labeled - Yhat_labeled) / n
         halfwidth = z_score * np.sqrt(var_unlabeled + var_residual)
 
-        lb = max(0.0, point_est - halfwidth)
-        ub = min(1.0, point_est + halfwidth)
+        lb = point_est - halfwidth
+        ub = point_est + halfwidth
 
         widths[b] = ub - lb
         coverages[b] = float(lb <= group_true_mean <= ub)
