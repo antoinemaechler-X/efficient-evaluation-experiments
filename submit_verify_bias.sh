@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH -A marlowe-m000127
 #SBATCH -G 1
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=logs/slurm_verify_bias_%A_%a.out
 #SBATCH --error=logs/slurm_verify_bias_%A_%a.err
 #SBATCH --array=0-19
