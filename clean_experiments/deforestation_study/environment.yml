@@ -1,0 +1,13 @@
+name: faq_env
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip:
+      - numpy>=2.0
+      - pandas>=2.0
+      - torch>=2.0
+      - scipy>=1.10
+      - matplotlib>=3.8
+      - scikit-learn>=1.4
+      - jupyter
